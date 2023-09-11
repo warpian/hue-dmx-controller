@@ -1,14 +1,14 @@
+import json
 import logging
 import os
-import sys
+import signal
 import time
-import json
+
 import daemon
-from pylibftdi import Device, Driver
+import requests
 from daemon import pidfile
 from dotenv import load_dotenv
-import requests
-import signal
+from pylibftdi import Device, Driver
 
 # initialize variables from config file (.env)
 load_dotenv()
@@ -16,6 +16,7 @@ load_dotenv()
 PID_FILE = os.getenv('PID')
 WORK_DIR = os.getenv('WORK_DIR')
 LOG_FILE = os.getenv('LOG_FILE')
+DAEMONIZE = os.getenv('DAEMONIZE', '').lower() == 'true'
 
 HUE_API_KEY = os.getenv('HUE_API_KEY')
 HUE_LAMP_ID = os.getenv('HUE_LAMP_ID')
@@ -118,9 +119,10 @@ def start_daemon():
 
 
 if __name__ == "__main__":
-    if os.getenv('DAEMONIZE') == 'true':
+    if DAEMONIZE:
         start_daemon()
     else:
+        init_logger()
         track_hue_lamp_and_update_dmx()
 
 
