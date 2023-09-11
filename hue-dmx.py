@@ -39,7 +39,7 @@ dmx_data = bytearray(513)
 
 logger = logging.getLogger()
 file_logger = logging.FileHandler(LOG_FILE)
-
+hue_connection_lost = False
 
 def init_logger():
     global logger, file_logger
@@ -51,34 +51,44 @@ def init_logger():
 
 def track_hue_lamp_and_update_dmx():
     logger.info("Starting Hue-DMX Daemon...")
-    global brightness
+    global brightness, hue_connection_lost
 
     while True:
-        response = requests.get(f"http://{HUE_BRIDGE_IP}/api/{HUE_API_KEY}/lights/{HUE_LAMP_ID}")
-        if response.status_code == 200:
-            response_obj = json.loads(response.text)
-            new_brightness = response_obj['state']['bri'] if response_obj['state']['on'] else 0
-            if brightness != new_brightness:
-                brightness = new_brightness
-                data = bytearray([brightness])  # specific to my situation, updates one DMX channel at address 1
-                update_dmx(DMX_ADDRESS, bytes(data))
-        time.sleep(HUE_POLL_SECONDS)
+        try:
+            response = requests.get(f"http://{HUE_BRIDGE_IP}/api/{HUE_API_KEY}/lights/{HUE_LAMP_ID}")
+            if response.status_code == 200:
+                hue_connection_lost = False
+                response_obj = json.loads(response.text)
+                new_brightness = response_obj['state']['bri'] if response_obj['state']['on'] else 0
+                if brightness != new_brightness:
+                    brightness = new_brightness
+                    data = bytearray([brightness])  # just updates one DMX channel at address 1
+                    update_dmx(DMX_ADDRESS, bytes(data))
+            time.sleep(HUE_POLL_SECONDS)
+        except Exception as e:
+            if not hue_connection_lost:
+                logger.error("Cannot contact Hue Bridge: %s", e)
+            hue_connection_lost = True
+            time.sleep(5)
 
 
 def send_dmx_packet(device: Device, data: bytes):
-    # reset dmx channel
-    device.ftdi_fn.ftdi_set_bitmode(1, 0x01)  # set break
-    device.write(b'\x00')
-    time.sleep(0.001)
-    device.write(b'\x01')
-    device.ftdi_fn.ftdi_set_bitmode(0, 0x00)  # release break
-    device.flush()
+    try:
+        # reset dmx channel
+        device.ftdi_fn.ftdi_set_bitmode(1, 0x01)  # set break
+        device.write(b'\x00')
+        time.sleep(0.001)
+        device.write(b'\x01')
+        device.ftdi_fn.ftdi_set_bitmode(0, 0x00)  # release break
+        device.flush()
 
-    device.ftdi_fn.ftdi_set_line_property(8, 2, 0)
-    device.baudrate = 250000
-    device.write(bytes(data))
-    device.flush()
-    device.close()
+        device.ftdi_fn.ftdi_set_line_property(8, 2, 0)
+        device.baudrate = 250000
+        device.write(bytes(data))
+        device.flush()
+        device.close()
+    except Exception as e:
+        logger.error("Cannot send dmx packet: %s", e)
 
 
 def update_dmx(address: int, data: bytes):
@@ -124,5 +134,3 @@ if __name__ == "__main__":
     else:
         init_logger()
         track_hue_lamp_and_update_dmx()
-
-
