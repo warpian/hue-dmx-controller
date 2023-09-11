@@ -23,6 +23,7 @@ logger.addHandler(log_file_handler)
 
 dmx_brightness = -1
 
+
 def track_hue_lamp_and_update_dmx():
     global dmx_brightness
     hue_api_key = os.getenv('HUE_API_KEY')
@@ -34,11 +35,27 @@ def track_hue_lamp_and_update_dmx():
         if response.status_code == 200:
             response_obj = json.loads(response.text)
             dmx_brightness = response_obj['state']['bri'] if response_obj['state']['on'] else 0
-            syncDmx()
+            update_dmx()
         time.sleep(0.5)
 
 
-def syncDmx():
+def send_dmx_packet(dev: Device, data: bytes):
+    # reset dmx channel
+    dev.ftdi_fn.ftdi_set_bitmode(1, 0x01)  # set break
+    dev.write(b'\x00')
+    time.sleep(0.001)
+    dev.write(b'\x01')
+    dev.ftdi_fn.ftdi_set_bitmode(0, 0x00)  # release break
+    dev.flush()
+
+    dev.ftdi_fn.ftdi_set_line_property(8, 2, 0)
+    dev.baudrate = 250000
+    dev.write(bytes(data))
+    dev.flush()
+    dev.close()
+
+
+def update_dmx():
     driver = Driver()
     devices = driver.list_devices()
 
@@ -55,28 +72,18 @@ def syncDmx():
         logger.debug(f"Manufacturer: {manufacturer}, Description: {description}, Serial: {serial}")
 
         with Device(serial) as dev:
-            dev.ftdi_fn.ftdi_set_bitmode(1, 0x01) # set break
-            dev.write(b'\x00')
-            time.sleep(0.001)
-            dev.write(b'\x01')
-            dev.ftdi_fn.ftdi_set_bitmode(0, 0x00) # release break
-            dev.flush()
-
-            dev.ftdi_fn.ftdi_set_line_property(8, 2, 0)
-            dev.baudrate = 250000
-            dev.write(bytes(data))
-            dev.close()
+            send_dmx_packet(dev, data)
 
 
 def start_daemon():
     with daemon.DaemonContext(
-             working_directory=os.getenv('WORK_DIR'),
-             umask=0o002,
-             pidfile=pidfile.TimeoutPIDLockFile(os.getenv('PID')),
+            working_directory=os.getenv('WORK_DIR'),
+            umask=0o002,
+            pidfile=pidfile.TimeoutPIDLockFile(os.getenv('PID')),
     ):
         track_hue_lamp_and_update_dmx()
 
 
 if __name__ == "__main__":
-    #start_daemon()
+    # start_daemon()
     track_hue_lamp_and_update_dmx()
