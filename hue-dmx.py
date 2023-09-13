@@ -3,7 +3,6 @@ import logging
 import os
 import signal
 import time
-from typing import Optional
 
 import daemon
 import requests
