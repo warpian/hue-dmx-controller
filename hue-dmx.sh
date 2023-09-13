@@ -1,12 +1,11 @@
 #!/bin/bash
 
-SCRIPT_DIR="/home/tkalmijn/Projects/RefactorZen/hue-dmx-controller"
-PID_FILE="/home/tkalmijn/Projects/RefactorZen/hue-dmx-controller/hue-dmx.pid"
+SCRIPT_DIR="/home/tkalmijn"
+PID_FILE="/var/run/hue-dmx.pid"
 
 start() {
     cd "$SCRIPT_DIR" || exit
     python3 "$SCRIPT_DIR/hue-dmx.py"
-    echo "Hue-DMX started with PID $(cat $PID_FILE)"
 }
 
 stop() {

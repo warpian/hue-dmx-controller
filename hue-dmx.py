@@ -3,6 +3,7 @@ import logging
 import os
 import signal
 import time
+from typing import Optional
 
 import daemon
 import requests
@@ -24,6 +25,8 @@ HUE_BRIDGE_IP = os.getenv('HUE_BRIDGE_IP')
 HUE_POLL_SECONDS = float(os.getenv('HUE_POLL_SEC'))
 
 DMX_ADDRESS = int(os.getenv('DMX_ADDRESS'))
+
+ftdi_serial_port = ''
 
 brightness = -1
 # brightness: the last dimming level is cached for optimization. DMX data is sent only when there is a change
@@ -49,8 +52,51 @@ def init_logger():
     logger.addHandler(file_logger)
 
 
+def init_ftdi_driver():
+    try:
+        driver = Driver()
+        devices = driver.list_devices()
+        for device in devices:
+            manufacturer, description, serial = device
+            logger.info(f"Manufacturer: {manufacturer}, Description: {description}, Serial: {serial}")
+            global ftdi_serial_port
+            ftdi_serial_port = serial
+    except Exception as e:
+        logger.error("Cannot initialize FTDI serial port: %s", e)
+        raise e
+
+
+def send_dmx_packet(ftdi_port: Device, data: bytes):
+    try:
+        # reset dmx channel
+        ftdi_port.ftdi_fn.ftdi_set_bitmode(1, 0x01)  # set break
+        ftdi_port.write(b'\x00')
+        time.sleep(0.001)
+        ftdi_port.write(b'\x01')
+        ftdi_port.ftdi_fn.ftdi_set_bitmode(0, 0x00)  # release break
+        ftdi_port.flush()
+
+        ftdi_port.ftdi_fn.ftdi_set_line_property(8, 2, 0)
+        ftdi_port.baudrate = 250000
+        ftdi_port.write(bytes(data))
+        ftdi_port.flush()
+#        ftdi_port.close()
+    except Exception as e:
+        logger.error("Cannot send dmx packet: %s", e)
+
+
+def update_dmx(address: int, data: bytes):
+    try:
+        logger.info(f"Updating dmx address {address}")
+        dmx_data[address:address + len(data)] = data
+        # address equals offset because DMX addresses start with 1 skipping the start byte in the data packet.
+        with Device(ftdi_serial_port) as ftdi_port:
+            send_dmx_packet(ftdi_port, dmx_data)
+    except Exception as e:
+        logger.error("Cannot send dmx packet: %s", e)
+
+
 def track_hue_lamp_and_update_dmx():
-    logger.info("Starting Hue-DMX Daemon...")
     global brightness, hue_connection_lost
 
     while True:
@@ -60,7 +106,7 @@ def track_hue_lamp_and_update_dmx():
                 hue_connection_lost = False
                 response_obj = json.loads(response.text)
                 new_brightness = response_obj['state']['bri'] if response_obj['state']['on'] else 0
-                if brightness != new_brightness:
+                if brightness != new_brightness: # only update dmx when dim level changes (fixture should 'HOLD' last DMX setting)
                     brightness = new_brightness
                     data = bytearray([brightness])  # just updates one DMX channel at address 1
                     update_dmx(DMX_ADDRESS, bytes(data))
@@ -72,47 +118,15 @@ def track_hue_lamp_and_update_dmx():
             time.sleep(5)
 
 
-def send_dmx_packet(device: Device, data: bytes):
-    try:
-        # reset dmx channel
-        device.ftdi_fn.ftdi_set_bitmode(1, 0x01)  # set break
-        device.write(b'\x00')
-        time.sleep(0.001)
-        device.write(b'\x01')
-        device.ftdi_fn.ftdi_set_bitmode(0, 0x00)  # release break
-        device.flush()
-
-        device.ftdi_fn.ftdi_set_line_property(8, 2, 0)
-        device.baudrate = 250000
-        device.write(bytes(data))
-        device.flush()
-        device.close()
-    except Exception as e:
-        logger.error("Cannot send dmx packet: %s", e)
-
-
-def update_dmx(address: int, data: bytes):
-    global dmx_data
-    driver = Driver()
-    devices = driver.list_devices()
-
-    if not devices:
-        logger.error("No FTDI devices found.")
-        return
-
-    for device in devices:
-        manufacturer, description, serial = device
-        logger.debug(f"Manufacturer: {manufacturer}, Description: {description}, Serial: {serial}")
-
-        with Device(serial) as dev:
-            logger.info(f"Updating dmx address {address}")
-            dmx_data[address:address + len(data)] = data
-            # address equals offset because DMX addresses start with 1 skipping the start byte in the data packet.
-            send_dmx_packet(dev, dmx_data)
+def start():
+    init_logger()
+    logger.info("Starting up")
+    init_ftdi_driver()
+    track_hue_lamp_and_update_dmx()
 
 
 def shutdown(signum, frame):
-    logger.info('shutting down')
+    logger.info('Shutting down')
     exit(0)
 
 
@@ -124,13 +138,11 @@ def start_daemon():
             pidfile=pidfile.PIDLockFile(PID_FILE)):
         signal.signal(signal.SIGTERM, shutdown)
         signal.signal(signal.SIGINT, shutdown)
-        init_logger()
-        track_hue_lamp_and_update_dmx()
+        start()
 
 
 if __name__ == "__main__":
     if DAEMONIZE:
         start_daemon()
     else:
-        init_logger()
-        track_hue_lamp_and_update_dmx()
+        start()
