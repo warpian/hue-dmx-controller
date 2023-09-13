@@ -25,7 +25,7 @@ HUE_POLL_SECONDS = float(os.getenv('HUE_POLL_SEC'))
 
 DMX_ADDRESS = int(os.getenv('DMX_ADDRESS'))
 
-ftdi_serial_port = ''
+ftdi_serial = ''
 
 brightness = -1
 # brightness: the last dimming level is cached for optimization. DMX data is sent only when there is a change
@@ -57,11 +57,13 @@ def init_ftdi_driver():
         devices = driver.list_devices()
         for device in devices:
             manufacturer, description, serial = device
-            logger.info(f"Manufacturer: {manufacturer}, Description: {description}, Serial: {serial}")
-            global ftdi_serial_port
-            ftdi_serial_port = serial
+            if manufacturer == "FTDI":
+                logger.info(f"Found FTDI port with serial {serial}")
+                global ftdi_serial
+                ftdi_serial = serial
+                break
     except Exception as e:
-        logger.error("Cannot initialize FTDI serial port: %s", e)
+        logger.error("Cannot determine FTDI serial: %s", e)
         raise e
 
 
@@ -78,8 +80,6 @@ def send_dmx_packet(ftdi_port: Device, data: bytes):
         ftdi_port.ftdi_fn.ftdi_set_line_property(8, 2, 0)
         ftdi_port.baudrate = 250000
         ftdi_port.write(bytes(data))
-        ftdi_port.flush()
-#        ftdi_port.close()
     except Exception as e:
         logger.error("Cannot send dmx packet: %s", e)
 
@@ -89,7 +89,7 @@ def update_dmx(address: int, data: bytes):
         logger.info(f"Updating dmx address {address}")
         dmx_data[address:address + len(data)] = data
         # address equals offset because DMX addresses start with 1 skipping the start byte in the data packet.
-        with Device(ftdi_serial_port) as ftdi_port:
+        with Device(ftdi_serial) as ftdi_port:
             send_dmx_packet(ftdi_port, dmx_data)
     except Exception as e:
         logger.error("Cannot send dmx packet: %s", e)
