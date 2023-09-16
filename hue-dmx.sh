@@ -11,7 +11,6 @@ start() {
 stop() {
     if [ -f $PID_FILE ]; then
         echo "Stopping Hue-DMX with PID $(cat $PID_FILE)..."
-        kill "$(cat $PID_FILE)"
     else
         echo "No PID file found at $PID_FILE."
     fi

@@ -32,6 +32,10 @@ from daemon import pidfile
 from dotenv import load_dotenv
 from pylibftdi import Device, Driver
 
+from DmxFixture import DmxFixture
+from OneChannelDimmableFixture import OneChannelDimmableFixture
+from UpdateEvent import UpdateEvent
+
 # initialize variables from config file (.env)
 load_dotenv()
 
@@ -39,21 +43,14 @@ PID_FILE = os.getenv('PID')
 WORK_DIR = os.getenv('WORK_DIR')
 LOG_FILE = os.getenv('LOG_FILE')
 DAEMONIZE = os.getenv('DAEMONIZE', '').lower() == 'true'
-
 HUE_API_KEY = os.getenv('HUE_API_KEY')
-HUE_LAMP_ID = os.getenv('HUE_LAMP_ID')
 HUE_BRIDGE_IP = os.getenv('HUE_BRIDGE_IP')
-HUE_POLL_SECONDS = float(os.getenv('HUE_POLL_SEC'))
+STUB_DMX = os.getenv('STUB_DMX')
 
-DMX_ADDRESS = int(os.getenv('DMX_ADDRESS'))
+CLIP_API_LIST_DEVICES_URL = f"https://{HUE_BRIDGE_IP}/clip/v2/resource/device"
+CLIP_API_EVENT_STREAM_URL = f"https://{HUE_BRIDGE_IP}/eventstream/clip/v2"
 
 ftdi_serial = ''
-
-brightness = -1
-# brightness: the last dimming level is cached for optimization. DMX data is sent only when there is a change
-# on the side of the Philips Hue bulb. This assumes that your DMX fixtures have a feature to HOLD the last setting
-# (instead of blacking out). If your fixture does not have this option or you want to turn off your DMX fixtures
-# when the script exits, then you need to add code to keep sending the DMX data (e.g. 44 times per second).
 
 dmx_data = bytearray(513)
 # 513: one start byte (0x00) plus 512 bytes of channel data
@@ -61,16 +58,33 @@ dmx_data = bytearray(513)
 # According to DMX512, when sending a message to a fixture, we need to repeat the untouched DMX
 # channels. For this reason channel data is buffered in dmx_data.
 
+# Suppress only the single InsecureRequestWarning from urllib3
+from urllib3.exceptions import InsecureRequestWarning
+
+requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
+
 logger = logging.getLogger()
 file_logger = logging.FileHandler(LOG_FILE)
 hue_connection_lost = False
 
+pin_spot_buddha = OneChannelDimmableFixture(
+    name="Buddha",
+    hue_device_id="1a50407e-3634-4815-8246-dd2fba3c7cba",
+    dmx_address=1)
+
+dmx_fixtures = [pin_spot_buddha] # add more fixtures here
+
+hue_device_list = {}
+
 def init_logger():
     global logger, file_logger
     logger.setLevel(logging.INFO)
+    console_logger = logging.StreamHandler()
+    console_logger.setLevel(logging.INFO)
     file_logger.setLevel(logging.INFO)
     file_logger.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
     logger.addHandler(file_logger)
+    logger.addHandler(console_logger)
 
 
 def init_ftdi_driver():
@@ -117,30 +131,88 @@ def update_dmx(address: int, data: bytes):
         logger.error("Cannot send dmx packet: %s", e)
 
 
-def track_hue_lamp_and_update_dmx():
-    global brightness, hue_connection_lost
+def get_hue_devices():
+    headers = {
+        "hue-application-key": HUE_API_KEY,
+        "Connection": "keep-alive",
+        "Accept": "application/json"
+    }
+    response = requests.get(CLIP_API_LIST_DEVICES_URL, headers=headers, verify=False)
+    response.raise_for_status()
+    json = response.json()
+    result = {}  # map of device id to user provided name
+    for device in json['data']:
+        result[device['id']] = device['metadata']['name']
+    return result
 
+
+def hue_bridge_event_stream():
+    headers = {
+        "hue-application-key": HUE_API_KEY,
+        "Connection": "keep-alive",
+        "Accept": "text/event-stream"
+    }
+    with requests.get(CLIP_API_EVENT_STREAM_URL, headers=headers, stream=True, verify=False) as response:
+        response.raise_for_status()
+        buffer = ""
+        for line in response.iter_lines(decode_unicode=True):
+            if line:
+                buffer += line + "\n"
+            else:
+                if buffer:
+                    yield buffer.strip()
+                buffer = ""
+
+
+def parse_sse_event(sse_event: str) -> UpdateEvent | None:
+    try:
+        for line in sse_event.strip().split("\n"):
+            if line.startswith("data: "):
+                json_str = line[len("data: "):]
+                if json_str:
+                    event = json.loads(json_str)[0]
+                    if event["type"] == "update":
+                        data = event["data"][0]
+                        owner = data["owner"]
+                        device_id = owner["rid"]
+                        device_type = owner['rtype']
+                        device_name = device_type if device_type != "device" else hue_device_list.get(device_id, "unknown")
+                        return UpdateEvent(device_id, device_name, data)
+
+    except Exception as e:
+        logger.error(f"cannot parse sse event: {e}")
+    return None
+
+
+def track_hue_lamp_and_update_dmx():
     while True:
         try:
-            response = requests.get(f"http://{HUE_BRIDGE_IP}/api/{HUE_API_KEY}/lights/{HUE_LAMP_ID}")
-            if response.status_code == 200:
-                hue_connection_lost = False
-                response_obj = json.loads(response.text)
-                new_brightness = response_obj['state']['bri'] if response_obj['state']['on'] else 0
-                if brightness != new_brightness: # only update dmx when dim level changes (fixture should 'HOLD' last DMX setting)
-                    brightness = new_brightness
-                    data = bytearray([brightness])  # just updates one DMX channel at address 1
-                    update_dmx(DMX_ADDRESS, bytes(data))
-            time.sleep(HUE_POLL_SECONDS)
-        except Exception as e:
-            if not hue_connection_lost:
-                logger.error("Cannot contact Hue Bridge: %s", e)
-            hue_connection_lost = True
-            time.sleep(5)
+            for sse_event in hue_bridge_event_stream():
+                event = parse_sse_event(sse_event)
+                if event:
+                    logger.info(f"{event.device_name} ({event.device_id.split('-')[0]})")
+                    # check if dmx fixture registered for event
+                    fixture: DmxFixture = next((fixture for fixture in dmx_fixtures if fixture.hue_device_id == event.device_id), None)
+                    if fixture:
+                        message = fixture.get_dmx_message(event.data)
+                        if STUB_DMX:
+                            logger.info(f"dmx update {fixture.name}: {fixture.get_state()}")
+                        else:
+                            update_dmx(fixture.dmx_address, message)
 
+                    if event.device_name == "unknown":
+                        logger.warn(f"received update for unknown device: {event.data}")
+        except Exception as e:
+            logger.error("eventstream broken: %s", e)
+            time.sleep(2)
 
 def start():
     init_logger()
+    global hue_device_list
+    hue_device_list = get_hue_devices()
+    for key, value in hue_device_list.items():
+        logger.info(f"{key.split('-')[0]}: {value}")
+
     logger.info("Starting up")
     init_ftdi_driver()
     track_hue_lamp_and_update_dmx()
