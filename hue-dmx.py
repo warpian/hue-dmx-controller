@@ -25,6 +25,7 @@ import logging
 import os
 import signal
 import time
+from typing import Dict, Any, List
 
 import daemon
 import requests
@@ -34,7 +35,6 @@ from pylibftdi import Device, Driver
 
 from DmxFixture import DmxFixture
 from OneChannelDimmableFixture import OneChannelDimmableFixture
-from UpdateEvent import UpdateEvent
 
 # initialize variables from config file (.env)
 load_dotenv()
@@ -47,7 +47,8 @@ HUE_API_KEY = os.getenv('HUE_API_KEY')
 HUE_BRIDGE_IP = os.getenv('HUE_BRIDGE_IP')
 STUB_DMX = os.getenv('STUB_DMX')
 
-CLIP_API_LIST_DEVICES_URL = f"https://{HUE_BRIDGE_IP}/clip/v2/resource/device"
+CLIP_API_RESOURCE_LIGHT = f"https://{HUE_BRIDGE_IP}/clip/v2/resource/light"
+CLIP_API_RESOURCE_DEVICE = f"https://{HUE_BRIDGE_IP}/clip/v2/resource/device"
 CLIP_API_EVENT_STREAM_URL = f"https://{HUE_BRIDGE_IP}/eventstream/clip/v2"
 
 ftdi_serial = ''
@@ -67,14 +68,9 @@ logger = logging.getLogger()
 file_logger = logging.FileHandler(LOG_FILE)
 hue_connection_lost = False
 
-pin_spot_buddha = OneChannelDimmableFixture(
-    name="Buddha",
-    hue_device_id="1a50407e-3634-4815-8246-dd2fba3c7cba",
-    dmx_address=1)
+pin_spot_buddha = OneChannelDimmableFixture(name="Buddha", hue_device_id="0ff176d1-21c0-4497-b491-65c53a4214bd", dmx_address=1)
 
-dmx_fixtures = [pin_spot_buddha] # add more fixtures here
-
-hue_device_list = {}
+dmx_fixtures: List[DmxFixture] = [pin_spot_buddha]  # add more fixtures here
 
 def init_logger():
     global logger, file_logger
@@ -131,19 +127,14 @@ def update_dmx(address: int, data: bytes):
         logger.error("Cannot send dmx packet: %s", e)
 
 
-def get_hue_devices():
+def get_hue_light_info(hue_device_id: str) -> Dict[str, Any]:
     headers = {
         "hue-application-key": HUE_API_KEY,
-        "Connection": "keep-alive",
         "Accept": "application/json"
     }
-    response = requests.get(CLIP_API_LIST_DEVICES_URL, headers=headers, verify=False)
+    response = requests.get(f"{CLIP_API_RESOURCE_LIGHT}/{hue_device_id}", headers=headers, verify=False)
     response.raise_for_status()
-    json = response.json()
-    result = {}  # map of device id to user provided name
-    for device in json['data']:
-        result[device['id']] = device['metadata']['name']
-    return result
+    return response.json()['data'][0]
 
 
 def hue_bridge_event_stream():
@@ -164,23 +155,15 @@ def hue_bridge_event_stream():
                 buffer = ""
 
 
-def parse_sse_event(sse_event: str) -> UpdateEvent | None:
+def parse_sse_event(sse_event: str) -> Dict[str, Any] | None:
     try:
         for line in sse_event.strip().split("\n"):
             if line.startswith("data: "):
                 json_str = line[len("data: "):]
                 if json_str:
-                    event = json.loads(json_str)[0]
-                    if event["type"] == "update":
-                        data = event["data"][0]
-                        owner = data["owner"]
-                        device_id = owner["rid"]
-                        device_type = owner['rtype']
-                        device_name = device_type if device_type != "device" else hue_device_list.get(device_id, "unknown")
-                        return UpdateEvent(device_id, device_name, data)
-
+                    return json.loads(json_str)[0]
     except Exception as e:
-        logger.error(f"cannot parse sse event: {e}")
+        logger.error(f"Cannot parse sse event: {e}")
     return None
 
 
@@ -189,30 +172,22 @@ def track_hue_lamp_and_update_dmx():
         try:
             for sse_event in hue_bridge_event_stream():
                 event = parse_sse_event(sse_event)
-                if event:
-                    logger.info(f"{event.device_name} ({event.device_id.split('-')[0]})")
-                    # check if dmx fixture registered for event
-                    fixture: DmxFixture = next((fixture for fixture in dmx_fixtures if fixture.hue_device_id == event.device_id), None)
-                    if fixture:
-                        message = fixture.get_dmx_message(event.data)
-                        if STUB_DMX:
-                            logger.info(f"dmx update {fixture.name}: {fixture.get_state()}")
-                        else:
-                            update_dmx(fixture.dmx_address, message)
+                if event and event["type"] == "update":
+                    for fixture in dmx_fixtures:
+                        info = get_hue_light_info(fixture.hue_device_id)
+#                        if STUB_DMX:
+#                            logger.info(f"dmx update {fixture.name}: {fixture.get_dmx_message(info)}")
+#                        else:
+                        update_dmx(fixture.dmx_address, fixture.get_dmx_message(info))
 
-                    if event.device_name == "unknown":
-                        logger.warn(f"received update for unknown device: {event.data}")
+
         except Exception as e:
-            logger.error("eventstream broken: %s", e)
-            time.sleep(2)
+            logger.error("Eventstream broken: %s", e)
+            time.sleep(5)
+
 
 def start():
     init_logger()
-    global hue_device_list
-    hue_device_list = get_hue_devices()
-    for key, value in hue_device_list.items():
-        logger.info(f"{key.split('-')[0]}: {value}")
-
     logger.info("Starting up")
     init_ftdi_driver()
     track_hue_lamp_and_update_dmx()
