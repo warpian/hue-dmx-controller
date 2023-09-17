@@ -33,8 +33,9 @@ from daemon import pidfile
 from dotenv import load_dotenv
 from pylibftdi import Device, Driver
 
+from AdjSaberSpotRGBW import AdjSaberSpotRGBW
+from AdjSaberSpotWW import AdjSaberSpotWW
 from DmxFixture import DmxFixture
-from OneChannelDimmableFixture import OneChannelDimmableFixture
 
 # initialize variables from config file (.env)
 load_dotenv()
@@ -68,9 +69,14 @@ logger = logging.getLogger()
 file_logger = logging.FileHandler(LOG_FILE)
 hue_connection_lost = False
 
-pin_spot_buddha = OneChannelDimmableFixture(name="Buddha", hue_device_id="0ff176d1-21c0-4497-b491-65c53a4214bd", dmx_address=1)
+pin_spot_buddha = AdjSaberSpotWW(name="Buddha", hue_device_id="0ff176d1-21c0-4497-b491-65c53a4214bd",
+                                            dmx_address=1)
+# pin_spot_bureau = AdjSaberSpotRGBW(name="Bureau", hue_device_id="a96+c32b7-e705-4bb9-adc7-f04902e70d6b",
+#                                         dmx_address=2)
+pin_spot_bureau = AdjSaberSpotRGBW(name="Bureau", hue_device_id="e0a5dd4a-67d3-4f40-ab6d-67c8ebbd463d",
+                                   dmx_address=2)
+dmx_fixtures: List[DmxFixture] = [pin_spot_buddha, pin_spot_bureau]  # add more fixtures here
 
-dmx_fixtures: List[DmxFixture] = [pin_spot_buddha]  # add more fixtures here
 
 def init_logger():
     global logger, file_logger
@@ -127,6 +133,20 @@ def update_dmx(address: int, data: bytes):
         logger.error("Cannot send dmx packet: %s", e)
 
 
+def get_hue_lights() -> Dict[str, str]:
+    headers = {
+        "hue-application-key": HUE_API_KEY,
+        "Accept": "application/json"
+    }
+    response = requests.get(CLIP_API_RESOURCE_LIGHT, headers=headers, verify=False)
+    response.raise_for_status()
+    json = response.json()
+    result = {}  # map of device id to user provided name
+    for device in json['data']:
+        result[device['id']] = device['metadata']['name']
+    return result
+
+
 def get_hue_light_info(hue_device_id: str) -> Dict[str, Any]:
     headers = {
         "hue-application-key": HUE_API_KEY,
@@ -175,10 +195,12 @@ def track_hue_lamp_and_update_dmx():
                 if event and event["type"] == "update":
                     for fixture in dmx_fixtures:
                         info = get_hue_light_info(fixture.hue_device_id)
-#                        if STUB_DMX:
-#                            logger.info(f"dmx update {fixture.name}: {fixture.get_dmx_message(info)}")
-#                        else:
-                        update_dmx(fixture.dmx_address, fixture.get_dmx_message(info))
+                        if STUB_DMX:
+                            fixture.get_dmx_message(info)
+                            logger.info(f"Update {fixture.name}")
+                        else:
+                            logger.info(f"Update {fixture.name}")
+                            update_dmx(fixture.dmx_address, fixture.get_dmx_message(info))
 
 
         except Exception as e:
@@ -189,6 +211,9 @@ def track_hue_lamp_and_update_dmx():
 def start():
     init_logger()
     logger.info("Starting up")
+    logger.info("discovering Hue lights...")
+    for key, value in get_hue_lights().items():
+         logger.info(f"{key}: {value}")
     init_ftdi_driver()
     track_hue_lamp_and_update_dmx()
 

@@ -1,16 +1,16 @@
 from DmxFixture import DmxFixture
 
 
-class OneChannelDimmableFixture(DmxFixture):
+class AdjSaberSpotWW(DmxFixture):
     on = False
     brightness = 0 # expected to be between 0 and 255
 
-    def get_dmx_message(self, data) -> bytes:
-        if 'on' in data:
-            self.on = data['on']['on']
+    def get_dmx_message(self, hue_light_info: object) -> bytes:
+        if 'on' in hue_light_info:
+            self.on = hue_light_info['on']['on']
 
-        if 'dimming' in data:
-            self.brightness = int(data['dimming']['brightness'])
+        if 'dimming' in hue_light_info:
+            self.brightness = int(hue_light_info['dimming']['brightness'])
             if self.brightness > 254:
                 self.brightness = 254
             if self.brightness < 0:

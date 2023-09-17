@@ -3,7 +3,7 @@ from dotenv import load_dotenv
 import requests
 import json
 
-from OneChannelDimmableFixture import OneChannelDimmableFixture
+from AdjSaberSpotWW import OneChannelDimmableFixture
 from UpdateEvent import UpdateEvent
 
 load_dotenv()
