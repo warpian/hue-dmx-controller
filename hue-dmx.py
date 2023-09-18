@@ -71,8 +71,7 @@ hue_connection_lost = False
 
 pin_spot_buddha = AdjSaberSpotWW(name="Buddha", hue_device_id="0ff176d1-21c0-4497-b491-65c53a4214bd",
                                             dmx_address=1)
-#pin_spot_bureau = AdjSaberSpotRGBW(name="Bureau", hue_device_id="a96c32b7-e705-4bb9-adc7-f04902e70d6b",
-#                                         dmx_address=2)
+
 pin_spot_bureau = AdjSaberSpotRGBW(name="Bureau", hue_device_id="e0a5dd4a-67d3-4f40-ab6d-67c8ebbd463d",
                                    dmx_address=2)
 dmx_fixtures: List[DmxFixture] = [pin_spot_buddha, pin_spot_bureau]  # add more fixtures here
