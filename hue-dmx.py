@@ -124,7 +124,6 @@ def send_dmx_packet(ftdi_port: Device, data: bytes):
 
 def update_dmx(address: int, data: bytes):
     try:
-        logger.info(f"Updating dmx address {address}")
         dmx_data[address:address + len(data)] = data
         # address equals offset because DMX addresses start with 1 skipping the start byte in the data packet.
         with Device(ftdi_serial) as ftdi_port:
@@ -200,9 +199,9 @@ def track_hue_lamp_and_update_dmx():
                     info = get_hue_light_info(fixture.hue_device_id)
                     if STUB_DMX:
                         fixture.get_dmx_message(info)
-                        logger.info(f"Update {fixture.name}")
+                        #logger.info(f"Update {fixture.name}")
                     else:
-                        logger.info(f"Update {fixture.name}")
+                        #logger.info(f"Update {fixture.name}")
                         update_dmx(fixture.dmx_address, fixture.get_dmx_message(info))
         time.sleep(5)
 
