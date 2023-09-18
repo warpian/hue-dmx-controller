@@ -1,11 +1,9 @@
-import math
+import colorsys
 from typing import Any, Dict
 
-import numpy as np
-
+import kelvin_rgb
 from ColorConverter import Converter, XYPoint
 from DmxFixture import DmxFixture
-
 
 class AdjSaberSpotRGBW(DmxFixture):
     on = False
@@ -30,38 +28,25 @@ class AdjSaberSpotRGBW(DmxFixture):
         color_converter = Converter(gamut)
         (r, g, b) = color_converter.xy_to_rgb(hue_light_info['color']['xy']['x'], hue_light_info['color']['xy']['y'])
         print(f"rgb: {r}, {g}, {b}")
-        (h, s, i) = self.rgb_to_hsi(r, b, g)
-        print(f"hsi: {h}, {s}, {i}")
-        return bytes([h, s, i])
+        (rr, gg, bb, ww) = self.rgb_to_rgbw(r, g, b)
+        print(f"rgbw: {rr}, {gg}, {bb}, {ww}")
+        return bytes([rr, gg, bb, ww])
 
-    def rgb_to_hsi(self, red: int, green: int, blue: int):
-        with np.errstate(divide='ignore', invalid='ignore'):
-            intensity = np.divide(blue + green + red, 3)
+    kelvin_white_led = 5000
+    k_white_red = kelvin_rgb.kelvin_table[kelvin_white_led][0]
+    k_white_green = kelvin_rgb.kelvin_table[kelvin_white_led][1]
+    k_white_blue = kelvin_rgb.kelvin_table[kelvin_white_led][2]
 
-            minimum = np.minimum(np.minimum(red, green), blue)
-            saturation = 1 - 3 * np.divide(minimum, red + green + blue)
+    def rgb_to_rgbw(self, r, g, b):
+        white_value_for_red = r * 255.0 / self.k_white_red
+        white_value_for_green = g * 255.0 / self.k_white_green
+        white_value_for_blue = b * 255.0 / self.k_white_blue
 
-            sqrt_calc = np.sqrt(((red - green) * (red - green)) + ((red - blue) * (green - blue)))
+        white = min(white_value_for_red, white_value_for_green, white_value_for_blue)
+        white = white if white <= 255 else 255
 
-            if green >= blue:
-                hue = np.arccos((1/2 * ((red-green) + (red - blue)) / sqrt_calc))
-            else:
-                hue = 2 * math.pi - np.arccos((1/2 * ((red-green) + (red - blue)) / sqrt_calc))
+        red = int(r - white * self.k_white_red / 255)
+        green = int(g - white * self.k_white_green / 255)
+        blue = int(b - white * self.k_white_blue / 255)
 
-            hue = hue * 180 / math.pi
-            hue = (hue + 45) % 360
-
-            print(f"hsi raw: {hue}, {saturation}, {intensity}")
-
-            h_byte = self.byteval((hue / 360) * 255)
-            s_byte = self.byteval((1 - saturation) * 255)
-            i_byte = self.byteval(intensity)
-            return h_byte, s_byte, i_byte
-
-    def byteval(self, num: float) -> int:
-        result = num
-        if result < 0:
-            result = 0
-        if result > 255:
-            result = 255
-        return int(result)
+        return red, green, blue, int(white)
