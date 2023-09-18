@@ -47,6 +47,7 @@ DAEMONIZE = os.getenv('DAEMONIZE', '').lower() == 'true'
 HUE_API_KEY = os.getenv('HUE_API_KEY')
 HUE_BRIDGE_IP = os.getenv('HUE_BRIDGE_IP')
 STUB_DMX = os.getenv('STUB_DMX')
+HUE_TIMEOUT_SEC = os.environ.get('HUE_TIMEOUT_SEC', 240)
 
 CLIP_API_RESOURCE_LIGHT = f"https://{HUE_BRIDGE_IP}/clip/v2/resource/light"
 CLIP_API_RESOURCE_DEVICE = f"https://{HUE_BRIDGE_IP}/clip/v2/resource/device"
@@ -162,16 +163,20 @@ def hue_bridge_event_stream():
         "Connection": "keep-alive",
         "Accept": "text/event-stream"
     }
-    with requests.get(CLIP_API_EVENT_STREAM_URL, headers=headers, stream=True, verify=False) as response:
+    with requests.get(CLIP_API_EVENT_STREAM_URL, headers=headers, stream=True, verify=False, timeout=HUE_TIMEOUT_SEC) as response:
+        logger.info("Connecting to Hue bridge...")
         response.raise_for_status()
-        buffer = ""
-        for line in response.iter_lines(decode_unicode=True):
-            if line:
-                buffer += line + "\n"
-            else:
-                if buffer:
-                    yield buffer.strip()
-                buffer = ""
+        try:
+            buffer = ""
+            for line in response.iter_lines(decode_unicode=True):
+                if line:
+                    buffer += line + "\n"
+                else:
+                    if buffer:
+                        yield buffer.strip()
+                    buffer = ""
+        except Exception as e:
+            logger.error("Lost connection to Hue bridge: %s", e)
 
 
 def parse_sse_event(sse_event: str) -> Dict[str, Any] | None:
@@ -188,23 +193,19 @@ def parse_sse_event(sse_event: str) -> Dict[str, Any] | None:
 
 def track_hue_lamp_and_update_dmx():
     while True:
-        try:
-            for sse_event in hue_bridge_event_stream():
-                event = parse_sse_event(sse_event)
-                if event and event["type"] == "update":
-                    for fixture in dmx_fixtures:
-                        info = get_hue_light_info(fixture.hue_device_id)
-                        if STUB_DMX:
-                            fixture.get_dmx_message(info)
-                            logger.info(f"Update {fixture.name}")
-                        else:
-                            logger.info(f"Update {fixture.name}")
-                            update_dmx(fixture.dmx_address, fixture.get_dmx_message(info))
+        for sse_event in hue_bridge_event_stream():
+            event = parse_sse_event(sse_event)
+            if event and event["type"] == "update":
+                for fixture in dmx_fixtures:
+                    info = get_hue_light_info(fixture.hue_device_id)
+                    if STUB_DMX:
+                        fixture.get_dmx_message(info)
+                        logger.info(f"Update {fixture.name}")
+                    else:
+                        logger.info(f"Update {fixture.name}")
+                        update_dmx(fixture.dmx_address, fixture.get_dmx_message(info))
+        time.sleep(5)
 
-
-        except Exception as e:
-            logger.error("Eventstream broken: %s", e)
-            time.sleep(5)
 
 
 def start():
