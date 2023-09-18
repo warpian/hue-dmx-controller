@@ -13,12 +13,18 @@ class AdjSaberSpotRGBW(DmxFixture):
         if 'on' in hue_light_info:
             self.on = hue_light_info['on']['on']
 
+        if not self.on:
+            return bytes([0, 0, 0, 0])
+
         if 'dimming' in hue_light_info:
             self.brightness = int(hue_light_info['dimming']['brightness'])
             if self.brightness > 254:
                 self.brightness = 254
             if self.brightness < 0:
                 self.brightness = 0
+
+        if hue_light_info['color']['gamut_type'] == 'other':
+            raise Exception(f"No gamut info for {self.name}, tracking Hue lamp {self.hue_device_id}")
 
         gamut = (
             XYPoint(hue_light_info['color']['gamut']['red']['x'], hue_light_info['color']['gamut']['red']['y']),
@@ -27,9 +33,7 @@ class AdjSaberSpotRGBW(DmxFixture):
         )
         color_converter = Converter(gamut)
         (r, g, b) = color_converter.xy_to_rgb(hue_light_info['color']['xy']['x'], hue_light_info['color']['xy']['y'])
-        print(f"rgb: {r}, {g}, {b}")
         (rr, gg, bb, ww) = self.rgb_to_rgbw(r, g, b)
-        print(f"rgbw: {rr}, {gg}, {bb}, {ww}")
         return bytes([rr, gg, bb, ww])
 
     kelvin_white_led = 5000
