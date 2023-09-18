@@ -1,12 +1,15 @@
+import math
 from typing import Any, Dict
 
+import numpy as np
+
+from ColorConverter import Converter, XYPoint
 from DmxFixture import DmxFixture
-from ColorConverter import Converter, get_light_gamut, XYPoint
 
 
 class AdjSaberSpotRGBW(DmxFixture):
     on = False
-    brightness = 0 # expected to be between 0 and 255
+    brightness = 0  # expected to be between 0 and 255
 
     def get_dmx_message(self, hue_light_info: Dict[str, Any]) -> bytes:
         if 'on' in hue_light_info:
@@ -25,44 +28,40 @@ class AdjSaberSpotRGBW(DmxFixture):
             XYPoint(hue_light_info['color']['gamut']['blue']['x'], hue_light_info['color']['gamut']['blue']['y']),
         )
         color_converter = Converter(gamut)
-        rgb = color_converter.xy_to_rgb(hue_light_info['color']['xy']['x'], hue_light_info['color']['xy']['y'])
-        dmx_dim_level = self.brightness if self.on else 0
-        #return bytes([rgb[0], rgb[1], rgb[2], 0])
-        return bytes([0, 0, 0, 0])
+        (r, g, b) = color_converter.xy_to_rgb(hue_light_info['color']['xy']['x'], hue_light_info['color']['xy']['y'])
+        print(f"rgb: {r}, {g}, {b}")
+        (h, s, i) = self.rgb_to_hsi(r, b, g)
+        print(f"hsi: {h}, {s}, {i}")
+        return bytes([h, s, i])
 
+    def rgb_to_hsi(self, red: int, green: int, blue: int):
+        with np.errstate(divide='ignore', invalid='ignore'):
+            intensity = np.divide(blue + green + red, 3)
 
-    def get_state(self) -> str:
-        return f"on={self.on}  brightness={self.brightness}"
+            minimum = np.minimum(np.minimum(red, green), blue)
+            saturation = 1 - 3 * np.divide(minimum, red + green + blue)
 
+            sqrt_calc = np.sqrt(((red - green) * (red - green)) + ((red - blue) * (green - blue)))
 
-    # def xy_to_rgb(self, vx, vy):
-    #     vy = vy or 1e-11
-    #     Y = 1
-    #     X = (Y / vy) * vx
-    #     Z = (Y / vy) * (1 - vx - vy)
-    #
-    #     # Convert to RGB using Wide RGB D65 conversion
-    #     rgb = [
-    #         X * 1.656492 - Y * 0.354851 - Z * 0.255038,
-    #         -X * 0.707196 + Y * 1.655397 + Z * 0.036152,
-    #         X * 0.051713 - Y * 0.121364 + Z * 1.011530
-    #     ]
-    #
-    #     # Apply reverse gamma correction
-    #     rgb = [(12.92 * x if x <= 0.0031308 else (1.0 + 0.055) * pow(x, 1.0 / 2.4) - 0.055) for x in rgb]
-    #
-    #     # Bring all negative components to zero
-    #     rgb = [max(0, x) for x in rgb]
-    #
-    #     # If one component is greater than 1, weight components by that value
-    #     max_val = max(rgb)
-    #     if max_val > 1:
-    #         rgb = [x / max_val for x in rgb]
-    #
-    #     # Round to integer RGB values between 0 and 255
-    #     rgb = [round(x * 255) for x in rgb]
-    #
-    #     return rgb
-    #
-    #
-    #
+            if green >= blue:
+                hue = np.arccos((1/2 * ((red-green) + (red - blue)) / sqrt_calc))
+            else:
+                hue = 2 * math.pi - np.arccos((1/2 * ((red-green) + (red - blue)) / sqrt_calc))
+
+            hue = hue * 180 / math.pi
+            hue = (hue + 45) % 360
+
+            print(f"hsi raw: {hue}, {saturation}, {intensity}")
+
+            h_byte = self.byteval((hue / 360) * 255)
+            s_byte = self.byteval((1 - saturation) * 255)
+            i_byte = self.byteval(intensity)
+            return h_byte, s_byte, i_byte
+
+    def byteval(self, num: float) -> int:
+        result = num
+        if result < 0:
+            result = 0
+        if result > 255:
+            result = 255
+        return int(result)
