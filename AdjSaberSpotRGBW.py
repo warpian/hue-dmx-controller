@@ -6,8 +6,8 @@ from ColorConverter import Converter, XYPoint
 from DmxFixture import DmxFixture
 
 class AdjSaberSpotRGBW(DmxFixture):
-    on = False
-    brightness = 0  # expected to be between 0 and 255
+    on: bool = False
+    brightness: float = 0.0  # expected to be between 0 and 255
 
     def get_dmx_message(self, hue_light_info: Dict[str, Any]) -> bytes:
         if 'on' in hue_light_info:
@@ -17,11 +17,7 @@ class AdjSaberSpotRGBW(DmxFixture):
             return bytes([0, 0, 0, 0])
 
         if 'dimming' in hue_light_info:
-            self.brightness = int(hue_light_info['dimming']['brightness'])
-            if self.brightness > 254:
-                self.brightness = 254
-            if self.brightness < 0:
-                self.brightness = 0
+            self.brightness = hue_light_info['dimming']['brightness'] / 100
 
         if hue_light_info['color']['gamut_type'] == 'other':
             raise Exception(f"No gamut info for {self.name}, tracking Hue lamp {self.hue_device_id}")
@@ -33,7 +29,11 @@ class AdjSaberSpotRGBW(DmxFixture):
         )
         color_converter = Converter(gamut)
         (r, g, b) = color_converter.xy_to_rgb(hue_light_info['color']['xy']['x'], hue_light_info['color']['xy']['y'])
-        (rr, gg, bb, ww) = self.rgb_to_rgbw(r, g, b)
+        rd = int(r * self.brightness)
+        gd = int(g * self.brightness)
+        bd = int(b * self.brightness)
+        print(f"rgb: {rd}, {gd}, {bd}")
+        (rr, gg, bb, ww) = self.rgb_to_rgbw(rd, gd, bd)
         return bytes([rr, gg, bb, ww])
 
     kelvin_white_led = 5000
