@@ -47,7 +47,7 @@ DAEMONIZE = os.getenv('DAEMONIZE', '').lower() == 'true'
 HUE_API_KEY = os.getenv('HUE_API_KEY')
 HUE_BRIDGE_IP = os.getenv('HUE_BRIDGE_IP')
 STUB_DMX = os.getenv('STUB_DMX')
-HUE_TIMEOUT_SEC = os.environ.get('HUE_TIMEOUT_SEC', 240)
+HUE_TIMEOUT_SEC = int(os.environ.get('HUE_TIMEOUT_SEC', 240))
 
 CLIP_API_RESOURCE_LIGHT = f"https://{HUE_BRIDGE_IP}/clip/v2/resource/light"
 CLIP_API_RESOURCE_DEVICE = f"https://{HUE_BRIDGE_IP}/clip/v2/resource/device"
@@ -199,9 +199,9 @@ def track_hue_lamp_and_update_dmx():
                     info = get_hue_light_info(fixture.hue_device_id)
                     if STUB_DMX:
                         fixture.get_dmx_message(info)
-                        #logger.info(f"Update {fixture.name}")
+                        logger.info(f"Update {fixture.name}")
                     else:
-                        #logger.info(f"Update {fixture.name}")
+                        logger.info(f"Update {fixture.name}")
                         update_dmx(fixture.dmx_address, fixture.get_dmx_message(info))
         time.sleep(5)
 
