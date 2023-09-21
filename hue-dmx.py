@@ -75,8 +75,8 @@ def track_hue_lamp_and_update_dmx():
     for key, value in hue_bridge.list_light_ids_and_names().items():
         logger.info(f"{key}: {value}")
 
-    logger.info("Start listening for Hue bridge events...")
     while True:
+        logger.info("Start listening for Hue bridge events...")
         for event in hue_bridge.event_stream():
             if event and event["type"] == "update":
                 for fixture in dmx_fixtures:
