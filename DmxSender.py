@@ -7,8 +7,8 @@ from logging import Logger
 from pylibftdi import Device, Driver
 
 class DmxSender:
-    ftdi_serial = ''
 
+    ftdi_serial: str = None
     dmx_data = bytearray(513)
     # 513: one start byte (0x00) plus 512 bytes of channel data
     # dmx_data is automatically filled with zeros, incidentally also correctly setting the start byte.
@@ -34,6 +34,7 @@ class DmxSender:
             raise e
 
     def send_message(self, address: int, data: bytes):
+        assert self.ftdi_serial is not None, "FTDI driver is not initialized"
         try:
             self.dmx_data[address:address + len(data)] = data
             # address equals offset because DMX addresses start with 1 skipping the start byte in the data packet.

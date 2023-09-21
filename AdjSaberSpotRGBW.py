@@ -1,9 +1,8 @@
 """
 Copyright (c) 2023 Tom Kalmijn / MIT License.
 """
-from typing import Any, Dict
-
 import kelvin_rgb
+from typing import Any, Dict
 from ColorConverter import Converter, XYPoint
 from DmxFixture import DmxFixture
 
