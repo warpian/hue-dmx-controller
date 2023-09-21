@@ -36,7 +36,7 @@ class AdjSaberSpotRGBW(DmxFixture):
         # apply dimming level
         r, g, b = r * dim_factor, g * dim_factor, b * dim_factor
 
-        # print(f"rgb: {r}, {g}, {b}")
+        # convert to rgbw
         (r, g, b, w) = self.rgb_to_rgbw(r, g, b)
         return bytes([r, g, b, w])
 
