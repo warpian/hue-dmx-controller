@@ -8,5 +8,3 @@ class DmxFixture:
         print("not implemented!")
         return bytes()
 
-    def get_state(self) -> str:
-        return f"get_state not implemented for fixture {self.name} ({self.dmx_address})"
