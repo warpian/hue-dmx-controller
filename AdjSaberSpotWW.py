@@ -14,8 +14,8 @@ class AdjSaberSpotWW(DmxFixture):
             return bytes([0])
 
         dim_level = math.ceil(hue_light_info['dimming']['brightness']) if 'dimming' in hue_light_info else 255
-        if dim_level > 254:
-            dim_level = 254
+        if dim_level > 255:
+            dim_level = 255
         if dim_level < 0:
             dim_level = 0
 
