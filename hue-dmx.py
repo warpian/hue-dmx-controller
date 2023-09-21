@@ -20,21 +20,21 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-import logging
 import os
-import signal
 import time
-from typing import List
-
 import daemon
+import signal
+import logging
+from typing import List
 from daemon import pidfile
 from dotenv import load_dotenv
 
-from AdjSaberSpotRGBW import AdjSaberSpotRGBW
-from AdjSaberSpotWW import AdjSaberSpotWW
-from DmxFixture import DmxFixture
-from DmxSender import DmxSender
+# custom classes
 from HueBridge import HueBridge
+from DmxSender import DmxSender
+from DmxFixture import DmxFixture
+from AdjSaberSpotWW import AdjSaberSpotWW
+from AdjSaberSpotRGBW import AdjSaberSpotRGBW
 
 # initialize variables from config file (.env)
 load_dotenv()
@@ -50,13 +50,9 @@ HUE_TIMEOUT_SEC = int(os.environ.get('HUE_TIMEOUT_SEC', 240))
 
 logger = logging.getLogger()
 file_logger = logging.FileHandler(LOG_FILE)
-hue_connection_lost = False
 
-dmx_sender: DmxSender
-hue_bridge: HueBridge
-
-pin_spot_buddha = AdjSaberSpotWW(name="Buddha", hue_device_id="74b88e35-f81e-4f5a-b7af-3730ae5de366", dmx_address=1)
-pin_spot_bureau = AdjSaberSpotRGBW(name="Bureau", hue_device_id="e0a5dd4a-67d3-4f40-ab6d-67c8ebbd463d", dmx_address=2)
+pin_spot_buddha = AdjSaberSpotWW(name="Buddha", hue_light_id="74b88e35-f81e-4f5a-b7af-3730ae5de366", dmx_address=1)
+pin_spot_bureau = AdjSaberSpotRGBW(name="Bureau", hue_light_id="e0a5dd4a-67d3-4f40-ab6d-67c8ebbd463d", dmx_address=2)
 dmx_fixtures: List[DmxFixture] = [pin_spot_buddha, pin_spot_bureau]  # add more fixtures here
 
 def init_logger():
@@ -70,33 +66,31 @@ def init_logger():
     logger.addHandler(console_logger)
 
 def track_hue_lamp_and_update_dmx():
+    logger.info("Initializing DMX sender")
+    dmx_sender = DmxSender(logger=logger)
+
+    hue_bridge = HueBridge(bridge_ip=HUE_BRIDGE_IP, api_key=HUE_API_KEY, timeout_sec=HUE_TIMEOUT_SEC, logger=logger)
+
+    logger.info("Discovering Hue bulbs")
+    for key, value in hue_bridge.list_light_ids_and_names().items():
+        logger.info(f"{key}: {value}")
+
+    logger.info("Start listening for Hue bridge events...")
     while True:
-        for sse_event in hue_bridge.hue_bridge_event_stream():
-            event = hue_bridge.parse_sse_event(sse_event)
+        for event in hue_bridge.event_stream():
             if event and event["type"] == "update":
                 for fixture in dmx_fixtures:
-                    info = hue_bridge.get_hue_light_info(fixture.hue_device_id)
+                    hue_info = hue_bridge.get_light_info(fixture.hue_light_id)
                     logger.debug(f"Update {fixture.name}")
                     if STUB_DMX:
-                        fixture.get_dmx_message(info)
+                        fixture.get_dmx_message(hue_info)
                     else:
-                        dmx_sender.send_message(fixture.dmx_address, fixture.get_dmx_message(info))
+                        dmx_sender.send_message(fixture.dmx_address, fixture.get_dmx_message(hue_info))
         time.sleep(5)
 
 def start():
     init_logger()
     logger.info("Starting up")
-    global hue_bridge
-    hue_bridge = HueBridge(bridge_ip=HUE_BRIDGE_IP, api_key=HUE_API_KEY, timeout_sec=HUE_TIMEOUT_SEC, logger=logger)
-
-    logger.info("Discovering Hue bulbs")
-    for key, value in hue_bridge.get_hue_lights().items():
-         logger.info(f"{key}: {value}")
-
-    logger.info("Initializing DMX sender")
-    global dmx_sender
-    dmx_sender = DmxSender(logger=logger)
-
     track_hue_lamp_and_update_dmx()
 
 def shutdown(signum, frame):

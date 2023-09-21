@@ -1,3 +1,6 @@
+"""
+Copyright (c) 2023 Tom Kalmijn / MIT License.
+"""
 import json
 import requests
 from logging import Logger
@@ -25,7 +28,7 @@ class HueBridge:
         self.api_url_device = f"https://{bridge_ip}/clip/v2/resource/device"
         self.api_url_events = f"https://{bridge_ip}/eventstream/clip/v2"
 
-    def get_hue_lights(self) -> Dict[str, str]:
+    def list_light_ids_and_names(self) -> Dict[str, str]:
         headers = {
             "hue-application-key": self.api_key,
             "Accept": "application/json"
@@ -38,7 +41,7 @@ class HueBridge:
             result[device['id']] = device['metadata']['name']
         return result
 
-    def get_hue_light_info(self, hue_light_id: str) -> Dict[str, Any]:
+    def get_light_info(self, hue_light_id: str) -> Dict[str, Any]:
         headers = {
             "hue-application-key": self.api_key,
             "Accept": "application/json"
@@ -47,14 +50,13 @@ class HueBridge:
         response.raise_for_status()
         return response.json()['data'][0]
 
-    def hue_bridge_event_stream(self):
+    def event_stream(self):
         headers = {
             "hue-application-key": self.api_key,
             "Connection": "keep-alive",
             "Accept": "text/event-stream"
         }
         with requests.get(self.api_url_events, headers=headers, stream=True, verify=False, timeout=self.timeout_sec) as response:
-            self.logger.info("Connecting to Hue bridge...")
             response.raise_for_status()
             try:
                 buffer = ""
@@ -63,7 +65,7 @@ class HueBridge:
                         buffer += line + "\n"
                     else:
                         if buffer:
-                            yield buffer.strip()
+                            yield self.parse_sse_event(buffer.strip())
                         buffer = ""
             except Exception as e:
                 self.logger.error("Lost connection to Hue bridge: %s", e)

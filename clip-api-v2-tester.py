@@ -23,7 +23,7 @@ EVENT_STREAM_URL = f"https://{HUE_BRIDGE_IP}/eventstream/clip/v2"
 
 buddha_fixture = AdjSaberSpotWW(
     name="Buddha",
-    hue_device_id="1a50407e-3634-4815-8246-dd2fba3c7cba",
+    hue_light_id="1a50407e-3634-4815-8246-dd2fba3c7cba",
     dmx_address=1)
 
 HUE_ID_PIXAR = "e6c587a3-f25e-47a5-9807-a60029187af4"
@@ -91,7 +91,7 @@ for sse_event in event_stream(EVENT_STREAM_URL):
     if event:
         print(f"{event.device_name} ({event.device_id.split('-')[0]})")
         # check if fixture registered for this event
-        fixture = next((fixture for fixture in dmx_fixtures if fixture.hue_device_id == event.device_id), None)
+        fixture = next((fixture for fixture in dmx_fixtures if fixture.hue_light_id == event.device_id), None)
         if fixture:
             dmx_message = fixture.get_dmx_message(event.data)
             # dmx_update(fixture)

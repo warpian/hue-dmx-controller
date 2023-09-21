@@ -1,3 +1,6 @@
+"""
+Copyright (c) 2023 Tom Kalmijn / MIT License.
+"""
 import math
 from typing import Dict, Any
 

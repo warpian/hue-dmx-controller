@@ -1,3 +1,6 @@
+"""
+Copyright (c) 2023 Tom Kalmijn / MIT License.
+"""
 from typing import Any, Dict
 
 import kelvin_rgb
@@ -16,7 +19,7 @@ class AdjSaberSpotRGBW(DmxFixture):
         dim_factor = hue_light_info['dimming']['brightness'] / 100 if 'dimming' in hue_light_info else 1.0
 
         if hue_light_info['color']['gamut_type'] == 'other':
-            raise Exception(f"No gamut info for {self.name}, tracking Hue lamp {self.hue_device_id}")
+            raise Exception(f"No gamut info for {self.name}, tracking Hue lamp {self.hue_light_id}")
 
         gamut = (
             XYPoint(hue_light_info['color']['gamut']['red']['x'], hue_light_info['color']['gamut']['red']['y']),
