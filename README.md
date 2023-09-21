@@ -41,7 +41,7 @@ like to use other fixtures with this script you need derive from the DmxFixture 
 class overrides one method ```get_dmx_message(...)``` that converts incoming Hue information into a DMX message
 which is specific for your fixture.
 
-#### Note: ENTTEC OPEN DMX PRO is not supported (please contact me via github for feature requests)
+### Note: ENTTEC OPEN DMX PRO is not supported
 
 ## How it works
 This script connects to your Hue bridge using the new Hue Clip API v2. This new API has a facility to 
