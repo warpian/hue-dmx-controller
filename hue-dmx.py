@@ -70,7 +70,7 @@ logger = logging.getLogger()
 file_logger = logging.FileHandler(LOG_FILE)
 hue_connection_lost = False
 
-pin_spot_buddha = AdjSaberSpotWW(name="Buddha", hue_device_id="0ff176d1-21c0-4497-b491-65c53a4214bd",
+pin_spot_buddha = AdjSaberSpotWW(name="Buddha", hue_device_id="74b88e35-f81e-4f5a-b7af-3730ae5de366",
                                             dmx_address=1)
 
 pin_spot_bureau = AdjSaberSpotRGBW(name="Bureau", hue_device_id="e0a5dd4a-67d3-4f40-ab6d-67c8ebbd463d",
