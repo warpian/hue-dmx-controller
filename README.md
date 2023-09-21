@@ -32,7 +32,7 @@ in a variant where one can simply replace the bulb with a Philips Hue compatible
 
 ## DMX Controller
 In order to integrate DMX in your Hue system you need a DMX controller. I choose to use the ENTTEC DMX USB dongle
-which is cheap and reliable. If you like to use a different DMX controller with this script than the script 
+which is cheap and reliable. If you like to use a different DMX controller with this script then the script 
 needs to be adapted to communicate with that controller.
 
 ## Fixtures
