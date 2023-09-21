@@ -3,8 +3,7 @@ from dotenv import load_dotenv
 import requests
 import json
 
-from AdjSaberSpotWW import OneChannelDimmableFixture
-from UpdateEvent import UpdateEvent
+from AdjSaberSpotWW import AdjSaberSpotWW
 
 load_dotenv()
 
@@ -22,7 +21,7 @@ DMX_ADDRESS = int(os.getenv('DMX_ADDRESS'))
 DEVICES_URL = f"https://{HUE_BRIDGE_IP}/clip/v2/resource/device"
 EVENT_STREAM_URL = f"https://{HUE_BRIDGE_IP}/eventstream/clip/v2"
 
-buddha_fixture = OneChannelDimmableFixture(
+buddha_fixture = AdjSaberSpotWW(
     name="Buddha",
     hue_device_id="1a50407e-3634-4815-8246-dd2fba3c7cba",
     dmx_address=1)
