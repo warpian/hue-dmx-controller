@@ -25,11 +25,14 @@ class AdjSaberSpotRGBW(DmxFixture):
         )
         x = hue_light_info['color']['xy']['x']
         y = hue_light_info['color']['xy']['y']
+
         # convert Hue gamut coordinates to r g b
         color_converter = Converter(gamut)
         r, g, b = color_converter.xy_to_rgb(x, y)
+
         # apply dimming level and convert to ints
         r, g, b = int(r * dim_factor), int(g * dim_factor), int(b * dim_factor)
+
         # print(f"rgb: {r}, {g}, {b}")
         (r, g, b, w) = self.rgb_to_rgbw(r, g, b)
         return bytes([r, g, b, w])
