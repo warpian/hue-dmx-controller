@@ -37,7 +37,7 @@ needs to be adapted to communicate with that controller.
 
 ## Fixtures
 I currently have two DMX fixtures: an American DJ Saber Spot WW and an American DJ Saber Spot RGBW. If you 
-like to use other fixtures with this script you need derive from the class DmxFixture class. Your derived
+like to use other fixtures with this script you need derive from the DmxFixture class. Your derived
 class overrides one method 'def get_dmx_message' that converts incoming Hue information into a DMX message
 which is specific for your fixture.
 
