@@ -86,6 +86,7 @@ def track_hue_lamp_and_update_dmx():
                         dmx_sender.send_message(fixture.dmx_address, dmx_message)
                     else:
                         logger.debug(f"Update {fixture.name}")
+        time.sleep(60) # try to connect again in a minute
 
 def start():
     init_logger()
