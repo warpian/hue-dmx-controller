@@ -6,6 +6,7 @@ from logging import Logger
 
 from pylibftdi import Device, Driver
 
+
 class DmxSender:
 
     ftdi_serial: str = None

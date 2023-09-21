@@ -2,9 +2,10 @@
 Copyright (c) 2023 Tom Kalmijn / MIT License.
 """
 import json
-import requests
 from logging import Logger
 from typing import Dict, Any
+
+import requests
 from urllib3.exceptions import InsecureRequestWarning
 
 # suppress InsecureRequestWarning from urllib3
