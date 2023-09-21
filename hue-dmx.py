@@ -65,7 +65,7 @@ def init_logger():
     logger.addHandler(file_logger)
     logger.addHandler(console_logger)
 
-def track_hue_lamp_and_update_dmx():
+def track_hue_lamps_and_update_dmx_fixtures():
     logger.info("Initializing DMX sender")
     dmx_sender = DmxSender(logger=logger)
 
@@ -78,7 +78,7 @@ def track_hue_lamp_and_update_dmx():
     while True:
         logger.info("Start listening for Hue bridge events...")
         for event in hue_bridge.event_stream():
-            if event and event["type"] == "update":
+            if event["type"] == "update":
                 for fixture in dmx_fixtures:
                     hue_info = hue_bridge.get_light_info(fixture.hue_light_id)
                     dmx_message = fixture.get_dmx_message(hue_info)
@@ -91,7 +91,7 @@ def track_hue_lamp_and_update_dmx():
 def start():
     init_logger()
     logger.info("Starting up")
-    track_hue_lamp_and_update_dmx()
+    track_hue_lamps_and_update_dmx_fixtures()
 
 def shutdown(signum, frame):
     logger.info('Shutting down')

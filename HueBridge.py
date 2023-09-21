@@ -65,8 +65,9 @@ class HueBridge:
                     if line:
                         buffer += line + "\n"
                     else:
-                        if buffer:
-                            yield self.parse_sse_event(buffer.strip())
+                        event = buffer.strip()
+                        if event:
+                            yield self.parse_sse_event(event)
                         buffer = ""
             except Exception as e:
                 self.logger.error("Lost connection to Hue bridge: %s", e)
