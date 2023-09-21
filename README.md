@@ -53,11 +53,31 @@ information about the light into a DMX message. Then the script will send that m
 ## DMX Hold
 This script does not repeat the DMX channels (like e.g. 44 times per seconds), instead it only sends a 
 DMX message when a light changes. This means that your fixture must support a 'Hold' function that will
-prevent the fixture from black out. 
+prevent the fixture from blacking out. 
 
-## Usage
-Adapt the included .env file (with example values) to configure the script. In .env you specify the IP
-address of your Hue bridge, the Hue API key, etc. 
+## Script configuration
+Adapt the included .env file (with example values) to configure the script. Here you specify the IP
+address of your Hue bridge, the Hue API key, etc.
+```
+WORK_DIR=.
+LOG_FILE=/var/log/hue-dmx.log
+PID=/var/run/hue-dmx.pid
+HUE_API_KEY=wazMEHP-1elntYnEbc6on6j8C234343ZSSVrBp6V
+HUE_BRIDGE_IP=192.168.0.140
+DAEMONIZE=false
+STUB_DMX=false
+```
+
+## Hue compatible bulb
+Because the Hue API does not let us create a virtual light bulb we will have to use an actual (cheap) Hue
+compatible bulb. First connect the bulb to the bridge as usual, then just take the bulb offline (put it
+in a drawer). The bulb will show up in Hue app as 'unreachable' but this can be ignored. Turning on/off 
+the light will work just fine. Your (cheap Hue compatible bulb) should have the features your DMX fixture 
+require. If your DMX fixture supports setting its color, the Hue compatible bulb should alo support that.
+
+## Register DMX fixtures
+The file 'hue_dmx.py' has a list of fixtures somewhere at the top. Adapt this list to your situation.
+Look for: ```dmx_fixtures: List[DmxFixture]```
 
 ## Adaptations and new features
 Please do not hesitate to cContact me for bug fixes or feature requests.
