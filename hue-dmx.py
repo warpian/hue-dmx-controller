@@ -197,11 +197,10 @@ def track_hue_lamp_and_update_dmx():
             if event and event["type"] == "update":
                 for fixture in dmx_fixtures:
                     info = get_hue_light_info(fixture.hue_device_id)
+                    logger.debug(f"Update {fixture.name}")
                     if STUB_DMX:
                         fixture.get_dmx_message(info)
-                        logger.debug(f"Update {fixture.name}")
                     else:
-                        logger.debug(f"Update {fixture.name}")
                         update_dmx(fixture.dmx_address, fixture.get_dmx_message(info))
         time.sleep(5)
 
