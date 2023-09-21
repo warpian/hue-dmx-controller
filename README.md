@@ -80,7 +80,7 @@ The file 'hue_dmx.py' has a list of fixtures somewhere at the top. Adapt this li
 Look for: ```dmx_fixtures: List[DmxFixture]```
 
 ## Adaptations and new features
-Please do not hesitate to cContact me for bug fixes or feature requests.
+Please do not hesitate to contact me for bug fixes or feature requests.
 
 
 
