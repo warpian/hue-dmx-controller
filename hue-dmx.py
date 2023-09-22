@@ -32,7 +32,6 @@ from dotenv import load_dotenv
 
 from DmxFixture import DmxFixture
 from DmxSender import DmxSender
-# custom classes
 from HueBridge import HueBridge
 
 # initialize variables from config file (.env)
@@ -95,6 +94,7 @@ def track_hue_lamps_and_update_dmx_fixtures():
     hue_bridge = HueBridge(bridge_ip=HUE_BRIDGE_IP, api_key=HUE_API_KEY, timeout_sec=HUE_TIMEOUT_SEC, logger=logger)
     hue_bulbs = hue_bridge.list_light_ids_and_names()
 
+    # check if the fixtures defined in .env all have a valid Hue id
     for fixture in dmx_fixtures:
         if not fixture.hue_light_id in hue_bulbs:
             logger.error(f"Hue id for fixture '{fixture.name}' cannot be found.")
