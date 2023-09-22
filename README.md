@@ -36,10 +36,21 @@ which is cheap and reliable. If you like to use a different DMX controller with 
 needs to be adapted to communicate with that controller.
 
 ## Fixtures
-I currently have two DMX fixtures: an American DJ Saber Spot WW and an American DJ Saber Spot RGBW. If you 
-like to use other fixtures with this script you need derive from the DmxFixture class. Your derived
-class overrides one method ```get_dmx_message(...)``` that converts incoming Hue information into a DMX message
-which is specific for your fixture.
+I currently have two DMX fixtures: an American DJ Saber Spot WW and an American DJ Saber Spot RGBW. The script
+has two classes to communicate with them: Dmx4ChRgbw and Dmx1ChDimmable. These classes have generic names because
+there must be lots of other fixtures that have the same channel dmx configurations. If you like to use a fixture
+with a different channel configuration then you need to write a new class derived from DmxFixture and override
+a single method: ```get_dmx_message(...)```. This method converts incoming Hue information into a DMX message.
+
+Currently supported fixture profiles:
+
+| name           | num channels | byte | purpose | range |
+|----------------|--------------|------|---------|-------|
+| Dmx1ChDimmable | 1            | 1    | dimming | 0-255 |
+| Dmx4ChRgbw     | 4            | 1    | red     | 0-255 |
+|                |              | 2    | green   | 0-255 |
+|                |              | 3    | blue    | 0-255 |
+|                |              | 4    | white   | 0-255 |
 
 ### Note: ENTTEC OPEN DMX PRO is not supported
 
@@ -60,12 +71,24 @@ Adapt the included .env file (with example values) to configure the script. Here
 address of your Hue bridge, the Hue API key, etc.
 ```
 WORK_DIR=.
-LOG_FILE=/var/log/hue-dmx.log
 PID=/var/run/hue-dmx.pid
-HUE_API_KEY=wazMEHP-1elntYnEbc6on6j8C234343ZSSVrBp6V
+LOG_FILE=./hue-dmx.log
 HUE_BRIDGE_IP=192.168.0.140
+HUE_API_KEY=wazMEHP-1elntYnEbc6on6j8CI7H3GqZSSVrBp6V
 DAEMONIZE=false
 STUB_DMX=false
+
+FIXTURE1_NAME=Bureau
+FIXTURE1_DMX_ADDRESS=2
+FIXTURE1_HUE_ID=e0a5dd4a-67d3-4f40-ab6d-67c8ebbd463d
+FIXTURE1_CLASS=Dmx4ChRgbw
+
+FIXTURE2_NAME=Buddha
+FIXTURE2_DMX_ADDRESS=1
+FIXTURE2_HUE_ID=74b88e35-f81e-4f5a-b7af-3730ae5de366
+FIXTURE2_CLASS=Dmx1ChDimmable
+
+# FIXTURE3_NAME=... etc
 ```
 
 ## Hue compatible bulb
