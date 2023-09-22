@@ -99,7 +99,7 @@ def track_hue_lamps_and_update_dmx_fixtures():
         if not fixture.hue_light_id in hue_bulbs:
             logger.error(f"Hue id for fixture '{fixture.name}' cannot be found.")
             logger.info("Valid id's:")
-            for key, value in hue_bridge.list_light_ids_and_names().items():
+            for key, value in hue_bulbs.items():
                 logger.info(f"    {key}: {value}")
             exit(0)
 
