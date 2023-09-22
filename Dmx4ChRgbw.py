@@ -8,7 +8,7 @@ from ColorConverter import Converter, XYPoint
 from DmxFixture import DmxFixture
 
 
-class AdjSaberSpotRGBW(DmxFixture):
+class Dmx4ChRgbw(DmxFixture):
     kelvin_white_led = 5000
 
     def get_dmx_message(self, hue_light_info: Dict[str, Any]) -> bytes:

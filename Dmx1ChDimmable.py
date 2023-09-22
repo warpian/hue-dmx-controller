@@ -7,7 +7,7 @@ from typing import Dict, Any
 from DmxFixture import DmxFixture
 
 
-class AdjSaberSpotWW(DmxFixture):
+class Dmx1ChDimmable(DmxFixture):
 
     def get_dmx_message(self, hue_light_info: Dict[str, Any]) -> bytes:
         if not 'on' in hue_light_info or not hue_light_info['on']['on']:

@@ -13,4 +13,5 @@ class DmxFixture:
 
     def get_dmx_message(self, hue_light_info: object) -> bytes:
         print("not implemented!")
+        return bytes()
 

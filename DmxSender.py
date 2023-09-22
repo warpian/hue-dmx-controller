@@ -35,7 +35,7 @@ class DmxSender:
             raise e
 
     def send_message(self, address: int, data: bytes):
-        assert self.ftdi_serial is not None, "FTDI driver is not initialized"
+        assert self.ftdi_serial, "FTDI driver is not initialized"
         try:
             self.dmx_data[address:address + len(data)] = data
             # address equals offset because DMX addresses start with 1 skipping the start byte in the data packet.
@@ -44,18 +44,15 @@ class DmxSender:
         except Exception as e:
             self.logger.error("Cannot send dmx packet: %s", e)
 
-    def send_dmx_packet(self, ftdi_port: Device, data: bytes):
-        try:
-            # reset dmx channel
-            ftdi_port.ftdi_fn.ftdi_set_bitmode(1, 0x01)  # set break
-            ftdi_port.write(b'\x00')
-            time.sleep(0.001)
-            ftdi_port.write(b'\x01')
-            ftdi_port.ftdi_fn.ftdi_set_bitmode(0, 0x00)  # release break
-            ftdi_port.flush()
-
-            ftdi_port.ftdi_fn.ftdi_set_line_property(8, 2, 0)
-            ftdi_port.baudrate = 250000
-            ftdi_port.write(bytes(data))
-        except Exception as e:
-            self.logger.error("Cannot send dmx packet: %s", e)
+    @staticmethod
+    def send_dmx_packet(ftdi_port: Device, data: bytes):
+        # reset dmx channel
+        ftdi_port.ftdi_fn.ftdi_set_bitmode(1, 0x01)  # break
+        ftdi_port.write(b'\x00')
+        time.sleep(0.001)
+        ftdi_port.write(b'\x01')
+        ftdi_port.ftdi_fn.ftdi_set_bitmode(0, 0x00)  # release break
+        ftdi_port.flush()
+        ftdi_port.ftdi_fn.ftdi_set_line_property(8, 2, 0)
+        ftdi_port.baudrate = 250000
+        ftdi_port.write(bytes(data))

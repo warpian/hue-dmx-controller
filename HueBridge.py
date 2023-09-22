@@ -67,7 +67,9 @@ class HueBridge:
                     else:
                         event = buffer.strip()
                         if event:
-                            yield self.parse_sse_event(event)
+                            parsed = self.parse_sse_event(event)
+                            if parsed:
+                                yield parsed
                         buffer = ""
             except Exception as e:
                 self.logger.error("Lost connection to Hue bridge: %s", e)
