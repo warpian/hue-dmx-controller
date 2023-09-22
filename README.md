@@ -98,10 +98,6 @@ in a drawer). The bulb will show up in Hue app as 'unreachable' but this can be 
 the light will work just fine. The bulb should have the features your DMX fixture require. So if your DMX
 fixture supports setting its color, the Hue compatible bulb should alo support that.
 
-## Register DMX fixtures
-The file 'hue_dmx.py' has a list of fixtures somewhere at the top. Adapt this list to your situation.
-Look for: ```dmx_fixtures: List[DmxFixture]```
-
 ## Adaptations and new features
 Please do not hesitate to contact me for bug fixes or feature requests.
 
