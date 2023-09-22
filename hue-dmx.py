@@ -44,11 +44,12 @@ LOG_FILE = os.getenv('LOG_FILE')
 DAEMONIZE = os.getenv('DAEMONIZE', 'false').lower() == 'true'
 HUE_API_KEY = os.getenv('HUE_API_KEY')
 HUE_BRIDGE_IP = os.getenv('HUE_BRIDGE_IP')
-STUB_DMX = os.getenv('STUB_DMX', 'false').lower() == "true"
+STUB_DMX = os.getenv('STUB_DMX', 'false').lower() == 'true'
 HUE_TIMEOUT_SEC = int(os.environ.get('HUE_TIMEOUT_SEC', 240))
 
 logger = logging.getLogger()
 file_logger = logging.FileHandler(LOG_FILE)
+
 
 def init_logger():
     global logger, file_logger
@@ -59,6 +60,7 @@ def init_logger():
     file_logger.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
     logger.addHandler(file_logger)
     logger.addHandler(console_logger)
+
 
 def load_dmx_fixtures() -> List[DmxFixture]:
     result: List[DmxFixture] = []
@@ -82,6 +84,7 @@ def load_dmx_fixtures() -> List[DmxFixture]:
         logger.error(f"Error loading DMX fixtures: {e}")
     return result
 
+
 def track_hue_lamps_and_update_dmx_fixtures():
     logger.info("Loading DMX fixtures")
     dmx_fixtures = load_dmx_fixtures()
@@ -89,10 +92,16 @@ def track_hue_lamps_and_update_dmx_fixtures():
     logger.info("Initializing DMX sender")
     dmx_sender = DmxSender(logger=logger)
 
-    logger.info("Discovering Hue bulbs")
     hue_bridge = HueBridge(bridge_ip=HUE_BRIDGE_IP, api_key=HUE_API_KEY, timeout_sec=HUE_TIMEOUT_SEC, logger=logger)
-    for key, value in hue_bridge.list_light_ids_and_names().items():
-        logger.info(f"    {key}: {value}")
+    hue_bulbs = hue_bridge.list_light_ids_and_names()
+
+    for fixture in dmx_fixtures:
+        if not fixture.hue_light_id in hue_bulbs:
+            logger.error(f"Hue id for fixture '{fixture.name}' cannot be found.")
+            logger.info("Valid id's:")
+            for key, value in hue_bridge.list_light_ids_and_names().items():
+                logger.info(f"    {key}: {value}")
+            exit(0)
 
     while True:
         logger.info("Start listening for Hue bridge events...")
@@ -105,16 +114,19 @@ def track_hue_lamps_and_update_dmx_fixtures():
                         dmx_sender.send_message(fixture.dmx_address, dmx_message)
                     else:
                         logger.info(f"Update {fixture.name}")
-        time.sleep(60) # try to connect again in a minute
+        time.sleep(60)  # try to connect again in a minute
+
 
 def start():
     init_logger()
     logger.info("Starting up")
     track_hue_lamps_and_update_dmx_fixtures()
 
+
 def shutdown(signum, frame):
     logger.info('Shutting down')
     exit(0)
+
 
 def start_daemon():
     with daemon.DaemonContext(
@@ -125,6 +137,7 @@ def start_daemon():
         signal.signal(signal.SIGTERM, shutdown)
         signal.signal(signal.SIGINT, shutdown)
         start()
+
 
 if __name__ == "__main__":
     if DAEMONIZE:
