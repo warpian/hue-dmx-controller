@@ -38,8 +38,8 @@ Currently supported fixture profiles:
 This script connects to your Hue bridge using the new Hue Clip API v2. This new API has a facility to 
 listen for events rather than using polling to see if a light has changed (on/off/brightness/color). When
 you turn on a light using the Hue app an event will come in and the script will see if there is a DMX
-fixtured registered for the event. If so it will ask your specialised DmxFixture derived class to convert
-information about the light into a DMX message. Then the script will send that message onto the DMX wire.
+fixture registered for the event. If so it will ask a specialised DmxFixture class to convert Hue light
+information into a DMX message. Finally the script will send that message onto the DMX wire.
 
 ## DMX Hold
 This script does not repeat the DMX channels (like e.g. 44 times per seconds), instead it only sends a 
