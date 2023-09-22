@@ -101,7 +101,7 @@ def track_hue_lamps_and_update_dmx_fixtures():
             logger.info("Valid id's:")
             for key, value in hue_bulbs.items():
                 logger.info(f"    {key}: {value}")
-            exit(0)
+            exit(1)
 
     while True:
         logger.info("Start listening for Hue bridge events...")
