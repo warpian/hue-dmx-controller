@@ -1,6 +1,7 @@
 """
 Copyright (c) 2023 Tom Kalmijn / MIT License.
 """
+import sys
 import time
 from logging import Logger
 
@@ -8,9 +9,9 @@ from pylibftdi import Device, Driver
 
 
 class DmxSender:
-
     ftdi_serial: str = None
     dmx_data = bytearray(513)
+
     # 513: one start byte (0x00) plus 512 bytes of channel data
     # dmx_data is automatically filled with zeros, incidentally also correctly setting the start byte.
     # According to DMX512, when sending a message to a fixture, we need to repeat the untouched DMX
@@ -27,9 +28,14 @@ class DmxSender:
             for device in devices:
                 manufacturer, description, serial = device
                 if manufacturer == "FTDI":
-                    self.logger.info(f"Found FTDI port with serial {serial}")
-                    self.ftdi_serial = serial
-                    break
+                    if serial:
+                        self.logger.info(f"Found FTDI port with serial {serial}")
+                        self.ftdi_serial = serial
+                        break
+                    else:
+                        self.logger.error("Serial number cannot be determined (cannot communicate with FTDI device?)")
+                        sys.exit(1)
+
         except Exception as e:
             self.logger.error("Cannot determine FTDI serial: %s", e)
             raise e

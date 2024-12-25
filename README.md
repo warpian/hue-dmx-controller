@@ -81,6 +81,14 @@ fixture supports setting its color, the Hue compatible bulb should alo support t
 ## Adaptations and new features
 Please do not hesitate to contact me for bug fixes or feature requests.
 
+## System Requirements
+- Python 3.6 or higher
+- Python FTDI driver 
+ 
+## Usage
 
+```bash
+$ python3 hue-dmx.py
+```
 
 

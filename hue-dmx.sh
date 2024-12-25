@@ -1,6 +1,6 @@
 #!/bin/bash
 
-SCRIPT_DIR="/home/tkalmijn"
+SCRIPT_DIR="."
 PID_FILE="/var/run/hue-dmx.pid"
 
 start() {
