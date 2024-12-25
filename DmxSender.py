@@ -25,6 +25,9 @@ class DmxSender:
         try:
             driver = Driver()
             devices = driver.list_devices()
+            if not devices:
+                self.logger.error("No FTDI devices found")
+                sys.exit(1)
             for device in devices:
                 manufacturer, description, serial = device
                 if manufacturer == "FTDI":
@@ -33,11 +36,15 @@ class DmxSender:
                         self.ftdi_serial = serial
                         break
                     else:
-                        self.logger.error("Serial number cannot be determined (cannot communicate with FTDI device?)")
+                        self.logger.error("Serial number not available (device may be in use)")
                         sys.exit(1)
 
+            if not self.ftdi_serial:
+                self.logger.error("No FTDI devices with a valid serial found")
+                sys.exit(1)
+
         except Exception as e:
-            self.logger.error("Cannot determine FTDI serial: %s", e)
+            self.logger.error("Error initializing FTDI driver: %s", e)
             raise e
 
     def send_message(self, address: int, data: bytes):
