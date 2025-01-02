@@ -1,0 +1,19 @@
+# save this file to: /etc/systemd/system/hue-dmx.service
+# usage
+# sudo systemctl start hue-dmx
+[Unit]
+Description=Hue DMX Controller Service
+After=network.target
+
+[Service]
+ExecStart=/usr/bin/python3 {script dir}/hue-dmx.py
+WorkingDirectory={script dir}/
+Restart=always
+RestartSec=5
+User=tkalmijn # change this to the user you want to run the service as
+Group=plugdev # change this to the group you want to run the service as
+Environment="PYTHONUNBUFFERED=1"
+
+[Install]
+WantedBy=multi-user.target
+
