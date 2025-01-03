@@ -22,25 +22,30 @@
 
 import logging
 import os
-import signal
-import time
 from typing import List
 
-import daemon
-from daemon import pidfile
+import time
 from dotenv import load_dotenv
 
 from DmxFixture import DmxFixture
 from DmxSender import DmxSender
 from HueBridge import HueBridge
 
+RUNNING_AS_SERVICE = os.getenv('RUNNING_AS_SERVICE')
+
 # initialize variables from config file (.env)
-load_dotenv()
+script_dir = os.path.dirname(os.path.abspath(__file__))
+
+if RUNNING_AS_SERVICE:
+    dotenv_path = os.path.join(script_dir, 'config-service.env')
+else:
+    dotenv_path = os.path.join(script_dir, 'config-console.env')
+
+load_dotenv(dotenv_path=dotenv_path)
 
 PID_FILE = os.getenv('PID')
 WORK_DIR = os.getenv('WORK_DIR')
-LOG_FILE = os.getenv('LOG_FILE')
-DAEMONIZE = os.getenv('DAEMONIZE', 'false').lower() == 'true'
+LOG_FILE =  os.getenv('LOG_FILE')
 HUE_API_KEY = os.getenv('HUE_API_KEY')
 HUE_BRIDGE_IP = os.getenv('HUE_BRIDGE_IP')
 STUB_DMX = os.getenv('STUB_DMX', 'false').lower() == 'true'
@@ -59,7 +64,6 @@ def init_logger():
     file_logger.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
     logger.addHandler(file_logger)
     logger.addHandler(console_logger)
-
 
 def load_dmx_fixtures() -> List[DmxFixture]:
     result: List[DmxFixture] = []
@@ -117,30 +121,16 @@ def track_hue_lamps_and_update_dmx_fixtures():
         time.sleep(60)  # try to connect again in a minute
 
 
-def start():
-    init_logger()
-    logger.info("Starting up")
-    track_hue_lamps_and_update_dmx_fixtures()
-
-
 def shutdown(signum, frame):
     logger.info('Shutting down')
     exit(0)
 
 
-def start_daemon():
-    with daemon.DaemonContext(
-            umask=0o002,
-            working_directory=WORK_DIR,
-            files_preserve=[file_logger.stream],
-            pidfile=pidfile.PIDLockFile(PID_FILE)):
-        signal.signal(signal.SIGTERM, shutdown)
-        signal.signal(signal.SIGINT, shutdown)
-        start()
-
-
 if __name__ == "__main__":
-    if DAEMONIZE:
-        start_daemon()
+    init_logger()
+    if RUNNING_AS_SERVICE:
+        logger.info("Starting Hue DMX service")
     else:
-        start()
+        logger.info("Running Hue DMX")
+    track_hue_lamps_and_update_dmx_fixtures()
+

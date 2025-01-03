@@ -36,7 +36,7 @@ class DmxSender:
                         self.ftdi_serial = serial
                         break
                     else:
-                        self.logger.error("Serial number not available (device may be in use)")
+                        self.logger.error("Serial number not available, eeprom may need to be reprogrammed (see 'eeprom' folder)")
                         sys.exit(1)
 
             if not self.ftdi_serial:

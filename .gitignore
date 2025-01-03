@@ -1,3 +1,4 @@
 /.idea/
 /hue-dmx.log
 /hue-dmx.pid
+/eeprom/eeprom.bin
