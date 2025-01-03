@@ -3,10 +3,13 @@ Copyright (c) 2023 Tom Kalmijn / MIT License.
 """
 import json
 from logging import Logger
-from typing import Dict, Any
+from typing import Dict, Any, Callable
 
 import requests
 from urllib3.exceptions import InsecureRequestWarning
+
+from ErrorLogger import ErrorLogger
+from RateLimiter import RateLimiter
 
 # suppress InsecureRequestWarning from urllib3
 requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
@@ -19,6 +22,8 @@ class HueBridge:
     api_url_light: str
     api_url_device: str
     api_url_events: str
+    error_logger: ErrorLogger
+    rate_limiter: RateLimiter
 
     def __init__(self, bridge_ip: str, api_key: str, timeout_sec: int, logger: Logger):
         self.logger = logger
@@ -28,6 +33,14 @@ class HueBridge:
         self.api_url_light = f"https://{bridge_ip}/clip/v2/resource/light"
         self.api_url_device = f"https://{bridge_ip}/clip/v2/resource/device"
         self.api_url_events = f"https://{bridge_ip}/eventstream/clip/v2"
+        self.error_logger = ErrorLogger(self.logger)
+        self.rate_limiter = RateLimiter(max_calls=5, period=1)
+
+        self.list_light_ids_and_names = self.decorate(self.list_light_ids_and_names)
+        self.get_light_info = self.decorate(self.get_light_info)
+
+    def decorate(self, func: Callable) -> Callable:
+        return self.rate_limiter(self.error_logger(func))
 
     def list_light_ids_and_names(self) -> Dict[str, str]:
         headers = {
