@@ -8,11 +8,9 @@ from typing import Dict, Any, Callable
 import requests
 from urllib3.exceptions import InsecureRequestWarning
 
-from ErrorLogger import ErrorLogger
-from RateLimiter import RateLimiter
-
 # suppress InsecureRequestWarning from urllib3
 requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
+
 
 class HueBridge:
     api_key: str
@@ -22,8 +20,6 @@ class HueBridge:
     api_url_light: str
     api_url_device: str
     api_url_events: str
-    error_logger: ErrorLogger
-    rate_limiter: RateLimiter
 
     def __init__(self, bridge_ip: str, api_key: str, timeout_sec: int, logger: Logger):
         self.logger = logger
@@ -33,14 +29,7 @@ class HueBridge:
         self.api_url_light = f"https://{bridge_ip}/clip/v2/resource/light"
         self.api_url_device = f"https://{bridge_ip}/clip/v2/resource/device"
         self.api_url_events = f"https://{bridge_ip}/eventstream/clip/v2"
-        self.error_logger = ErrorLogger(self.logger)
-        self.rate_limiter = RateLimiter(max_calls=5, period=1)
 
-        self.list_light_ids_and_names = self.decorate(self.list_light_ids_and_names)
-        self.get_light_info = self.decorate(self.get_light_info)
-
-    def decorate(self, func: Callable) -> Callable:
-        return self.rate_limiter(self.error_logger(func))
 
     def list_light_ids_and_names(self) -> Dict[str, str]:
         headers = {
@@ -55,14 +44,26 @@ class HueBridge:
             result[device['id']] = device['metadata']['name']
         return result
 
+    def get_light_url(self, hue_light_id: str) -> str:
+        return f"{self.api_url_light}/{hue_light_id}"
+
     def get_light_info(self, hue_light_id: str) -> Dict[str, Any]:
         headers = {
             "hue-application-key": self.api_key,
             "Accept": "application/json"
         }
-        response = requests.get(f"{self.api_url_light}/{hue_light_id}", headers=headers, verify=False)
+        response = requests.get(url=self.get_light_url(hue_light_id), headers=headers, verify=False)
         response.raise_for_status()
         return response.json()['data'][0]
+
+    def set_light_state(self, hue_light_id: str, state: Dict[str, Any]) -> Dict[str, Any]:
+        headers = {
+            "hue-application-key": self.api_key,
+            "Accept": "application/json"
+        }
+        response = requests.put(url=self.get_light_url(hue_light_id), json=state, headers=headers, verify=False)
+        response.raise_for_status()
+        return response.json()
 
     def event_stream(self):
         headers = {
@@ -70,7 +71,8 @@ class HueBridge:
             "Connection": "keep-alive",
             "Accept": "text/event-stream"
         }
-        with requests.get(self.api_url_events, headers=headers, stream=True, verify=False, timeout=self.timeout_sec) as response:
+        with requests.get(self.api_url_events, headers=headers, stream=True, verify=False,
+                          timeout=self.timeout_sec) as response:
             response.raise_for_status()
             try:
                 buffer = ""
@@ -85,6 +87,7 @@ class HueBridge:
                                 yield parsed
                         buffer = ""
             except Exception as e:
+                # non-fatal: caller may simply call event_stream(...) again
                 self.logger.error("Lost connection to Hue bridge: %s", e)
 
     def parse_sse_event(self, sse_event: str) -> Dict[str, Any] | None:

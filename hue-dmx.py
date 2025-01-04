@@ -22,6 +22,7 @@
 
 import logging
 import os
+import threading
 from typing import List
 
 import time
@@ -45,7 +46,7 @@ load_dotenv(dotenv_path=dotenv_path)
 
 PID_FILE = os.getenv('PID')
 WORK_DIR = os.getenv('WORK_DIR')
-LOG_FILE =  os.getenv('LOG_FILE')
+LOG_FILE = os.getenv('LOG_FILE')
 HUE_API_KEY = os.getenv('HUE_API_KEY')
 HUE_BRIDGE_IP = os.getenv('HUE_BRIDGE_IP')
 STUB_DMX = os.getenv('STUB_DMX', 'false').lower() == 'true'
@@ -64,6 +65,7 @@ def init_logger():
     file_logger.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
     logger.addHandler(file_logger)
     logger.addHandler(console_logger)
+
 
 def load_dmx_fixtures() -> List[DmxFixture]:
     result: List[DmxFixture] = []
@@ -88,6 +90,25 @@ def load_dmx_fixtures() -> List[DmxFixture]:
     return result
 
 
+# Changes the Hue 'function' metadata field of your first mapped DMX fixture (.env). The 'function' field is carefully
+# chosen not to influence the fixture's behavior. Changing 'function' is inconsequential. The value being set
+# alternates between 'mixed' and 'unknown'. These are both valid values according to the Hue API v2.
+#
+# The change of the fixture will trigger an 'update' event that comes back to our script via the http event stream.
+# Scheduling this method every 2 minutes prevents the event stream from timing out.
+def send_bridge_heart_beat(hue_bridge):
+    stop_event = threading.Event()
+    while not stop_event.is_set():
+        try:
+            hue_id = os.getenv(f"FIXTURE1_HUE_ID")
+            info = hue_bridge.get_light_info(hue_id)
+            function = "unknown" if info.get("metadata", {}).get("function") == "mixed" else "mixed"
+            hue_bridge.set_light_state(hue_id, {"metadata": {"function": function}})
+        except Exception as e:
+            logger.error("Error sending heart beat to Hue Bridge: %s", e)
+        time.sleep(180)
+
+
 def track_hue_lamps_and_update_dmx_fixtures():
     logger.info("Loading DMX fixtures")
     dmx_fixtures = load_dmx_fixtures()
@@ -107,17 +128,23 @@ def track_hue_lamps_and_update_dmx_fixtures():
                 logger.info(f"    {key}: {value}")
             exit(1)
 
+    threading.Thread(target=send_bridge_heart_beat, daemon=True).start()
+
     while True:
         logger.info("Start listening for Hue bridge events...")
         for event in hue_bridge.event_stream():
             if event["type"] == "update":
-                for fixture in dmx_fixtures:
-                    hue_info = hue_bridge.get_light_info(fixture.hue_light_id)
-                    dmx_message = fixture.get_dmx_message(hue_info)
-                    if not STUB_DMX:
-                        dmx_sender.send_message(fixture.dmx_address, dmx_message)
-                    else:
-                        logger.info(f"Update {fixture.name}")
+                changed_hue_ids = [item["id"] for item in event.get("data", [])]
+                try:
+                    for fixture in (f for f in dmx_fixtures if f.hue_light_id in changed_hue_ids):
+                        hue_info = hue_bridge.get_light_info(fixture.hue_light_id)
+                        dmx_message = fixture.get_dmx_message(hue_info)
+                        if STUB_DMX:
+                            logger.info(f"Update {fixture.name}")
+                        else:
+                            dmx_sender.send_message(fixture.dmx_address, dmx_message)
+                except Exception as e:
+                    logger.error("Error updating fixture: %s", e)
         time.sleep(60)  # try to connect again in a minute
 
 
@@ -133,4 +160,3 @@ if __name__ == "__main__":
     else:
         logger.info("Running Hue DMX")
     track_hue_lamps_and_update_dmx_fixtures()
-
