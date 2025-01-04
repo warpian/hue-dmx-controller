@@ -129,7 +129,7 @@ def track_hue_lamps_and_update_dmx_fixtures():
                 logger.info(f"    {key}: {value}")
             exit(1)
 
-    threading.Thread(target=send_bridge_heart_beat(hue_bridge), daemon=True).start()
+    threading.Thread(target=send_bridge_heart_beat, args=(hue_bridge,), daemon=True).start()
 
     while True:
         logger.info("Start listening for Hue bridge events...")
@@ -143,6 +143,7 @@ def track_hue_lamps_and_update_dmx_fixtures():
                         if STUB_DMX:
                             logger.info(f"Update {fixture.name}")
                         else:
+                            logger.info(f"Update {fixture.name}")
                             dmx_sender.send_message(fixture.dmx_address, dmx_message)
                 except Exception as e:
                     logger.error("Error updating fixture: %s", e)
