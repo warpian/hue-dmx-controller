@@ -124,6 +124,7 @@ def track_hue_lamps_and_update_dmx_fixtures():
     for fixture in dmx_fixtures:
         if fixture.hue_light_id in hue_bulbs:
             fixture.hueLamp = hue_bridge.get_light(fixture.hue_light_id)
+            time.sleep(0.2) # do not overwhelm hue bridge with (possibly) many DMX fixtures
         else:
             logger.error(f"Hue id for fixture '{fixture.name}' cannot be found.")
             logger.info("Valid id's:")
@@ -131,7 +132,7 @@ def track_hue_lamps_and_update_dmx_fixtures():
                 logger.info(f"    {key}: {value}")
             exit(1)
 
-    threading.Thread(target=send_bridge_heart_beat, args=(hue_bridge,), daemon=True).start()
+    #threading.Thread(target=send_bridge_heart_beat, args=(hue_bridge,), daemon=True).start()
 
     while True:
         logger.info("Start listening for Hue bridge events...")
@@ -144,12 +145,17 @@ def track_hue_lamps_and_update_dmx_fixtures():
                     for fixture in (f for f in dmx_fixtures if f.hue_light_id in changed_hue_ids):
                         update = updates.get(fixture.hue_light_id)
 
+                        if "dimming" in update:
+                            is_dimming = True
+                            fixture.hueLamp.dimming = Dimming.model_validate(update["dimming"])
+                        else:
+                            is_dimming = False
+
                         if "on" in update:
-                            fixture.hueLamp.on = On.model_validate(update["on"])
+                            fixture.hueLamp.on = is_dimming or On.model_validate(update["on"])
+
                         if "color" in update:
                             fixture.hueLamp.color.xy = Color.model_validate(update["color"]).xy
-                        if "dimming" in update:
-                            fixture.hueLamp.dimming = Dimming.model_validate(update["dimming"])
 
                         dmx_message = fixture.get_dmx_message()
                         if STUB_DMX:
