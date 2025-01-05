@@ -16,17 +16,25 @@ class DmxController:
     DEBOUNCE_DELAY = 0.2 # 200 milliseconds debounce delay
 
     def __init__(self):
+        self.running_as_service = os.getenv('RUNNING_AS_SERVICE', 'false').lower() == 'true'
+        self._load_env()
         self.logger = self._init_logger()
         self.dmx_fixtures: List[DmxFixture] = []
         self.dmx_sender: Optional[DmxSender] = None
         self.hue_bridge: Optional[HueBridge] = None
-        self.running_as_service = os.getenv('RUNNING_AS_SERVICE', 'false').lower() == 'true'
 
         self.pending_updates: Set[str] = set()
         self.update_lock = threading.Lock()
         self.debounce_timer = None
-        self._load_env()
         self._initialize()
+
+    def _load_env(self):
+        """
+        Loads environment variables from the appropriate `.env` file.
+        """
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        dotenv_path = os.path.join(script_dir, 'config-service.env' if self.running_as_service else 'config-console.env')
+        load_dotenv(dotenv_path=dotenv_path)
 
     @staticmethod
     def _init_logger():
@@ -47,14 +55,6 @@ class DmxController:
         logger.addHandler(file_handler)
         return logger
 
-    def _load_env(self):
-        """
-        Loads environment variables from the appropriate `.env` file.
-        """
-        script_dir = os.path.dirname(os.path.abspath(__file__))
-        dotenv_path = os.path.join(script_dir, 'config-service.env' if self.running_as_service else 'config-console.env')
-        load_dotenv(dotenv_path=dotenv_path)
-
     def _initialize(self):
         """
         Initializes DMX fixtures, DMX sender, and the Hue bridge connection.
@@ -72,7 +72,6 @@ class DmxController:
             timeout_sec=int(os.getenv('HUE_TIMEOUT_SEC', 240)),
             logger=self.logger
         )
-
         self._validate_fixtures()
 
     def _load_dmx_fixtures(self) -> List[DmxFixture]:
@@ -150,7 +149,8 @@ class DmxController:
         while True:
             for event in self.hue_bridge.event_stream():
                 if event["type"] == "update":
-                    self.logger.info(json.dumps(event, indent=4))
+                    if not self.running_as_service:
+                        self.logger.info(json.dumps(event, indent=4))
 
                     if self._contains_button_short_release(event):
                         changed_hue_ids = [fixture.hue_light_id for fixture in self.dmx_fixtures]
@@ -162,12 +162,19 @@ class DmxController:
     def _schedule_updates(self, changed_hue_ids: List[str]):
         """
         Adds the given Hue light IDs to the pending updates set and schedules debounced processing.
+        If new updates arrive during the debounce delay, the timer resets.
         """
         with self.update_lock:
+            # Add the new updates to the pending set
             self.pending_updates.update(changed_hue_ids)
-            if self.debounce_timer is None:
-                self.debounce_timer = threading.Timer(self.DEBOUNCE_DELAY, self._debounced_process_updates)
-                self.debounce_timer.start()
+
+            # Cancel the current timer if it's already running
+            if self.debounce_timer is not None:
+                self.debounce_timer.cancel()
+
+            # Start a new debounce timer
+            self.debounce_timer = threading.Timer(self.DEBOUNCE_DELAY, self._debounced_process_updates)
+            self.debounce_timer.start()
 
     def _debounced_process_updates(self):
         """
