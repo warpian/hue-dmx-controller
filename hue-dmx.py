@@ -132,7 +132,7 @@ def track_hue_lamps_and_update_dmx_fixtures():
                 logger.info(f"    {key}: {value}")
             exit(1)
 
-    #threading.Thread(target=send_bridge_heart_beat, args=(hue_bridge,), daemon=True).start()
+    threading.Thread(target=send_bridge_heart_beat, args=(hue_bridge,), daemon=True).start()
 
     while True:
         logger.info("Start listening for Hue bridge events...")
