@@ -19,11 +19,11 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-
+import json
 import logging
 import os
 import threading
-from typing import List
+from typing import List, Dict
 
 import time
 from dotenv import load_dotenv
@@ -31,6 +31,7 @@ from dotenv import load_dotenv
 from DmxFixture import DmxFixture
 from DmxSender import DmxSender
 from HueBridge import HueBridge
+from HueModel import On, Color, Dimming
 
 RUNNING_AS_SERVICE = os.getenv('RUNNING_AS_SERVICE')
 
@@ -101,10 +102,9 @@ def send_bridge_heart_beat(hue_bridge):
     while not stop_event.is_set():
         try:
             hue_id = os.getenv(f"FIXTURE1_HUE_ID")
-            info = hue_bridge.get_light_info(hue_id)
-            function = "unknown" if info.get("metadata", {}).get("function") == "mixed" else "mixed"
+            hue_light = hue_bridge.get_light(hue_id)
+            function = "unknown" if hue_light.metadata.function == "mixed" else "mixed"
             hue_bridge.set_light_state(hue_id, {"metadata": {"function": function}})
-            logger.info("heart beat sent")
         except Exception as e:
             logger.error("Error sending heart beat to Hue Bridge: %s", e)
         time.sleep(180)
@@ -120,9 +120,11 @@ def track_hue_lamps_and_update_dmx_fixtures():
     hue_bridge = HueBridge(bridge_ip=HUE_BRIDGE_IP, api_key=HUE_API_KEY, timeout_sec=HUE_TIMEOUT_SEC, logger=logger)
     hue_bulbs = hue_bridge.list_light_ids_and_names()
 
-    # check if the fixtures defined in .env all have a valid Hue id
+    # get initial state of dmx fixtures
     for fixture in dmx_fixtures:
-        if not fixture.hue_light_id in hue_bulbs:
+        if fixture.hue_light_id in hue_bulbs:
+            fixture.hueLamp = hue_bridge.get_light(fixture.hue_light_id)
+        else:
             logger.error(f"Hue id for fixture '{fixture.name}' cannot be found.")
             logger.info("Valid id's:")
             for key, value in hue_bulbs.items():
@@ -135,15 +137,24 @@ def track_hue_lamps_and_update_dmx_fixtures():
         logger.info("Start listening for Hue bridge events...")
         for event in hue_bridge.event_stream():
             if event["type"] == "update":
-                changed_hue_ids = [item["id"] for item in event.get("data", [])]
+                # logger.info(json.dumps(event, indent=4))
+                updates: Dict[str, {}] = {obj["id"]: obj for obj in event.get("data", []) if "id" in obj} # map of hue_id -> update
+                changed_hue_ids =  list(updates.keys())
                 try:
                     for fixture in (f for f in dmx_fixtures if f.hue_light_id in changed_hue_ids):
-                        hue_info = hue_bridge.get_light_info(fixture.hue_light_id)
-                        dmx_message = fixture.get_dmx_message(hue_info)
+                        update = updates.get(fixture.hue_light_id)
+
+                        if "on" in update:
+                            fixture.hueLamp.on = On.model_validate(update["on"])
+                        if "color" in update:
+                            fixture.hueLamp.color.xy = Color.model_validate(update["color"]).xy
+                        if "dimming" in update:
+                            fixture.hueLamp.dimming = Dimming.model_validate(update["dimming"])
+
+                        dmx_message = fixture.get_dmx_message()
                         if STUB_DMX:
                             logger.info(f"Update {fixture.name}")
                         else:
-                            logger.info(f"Update {fixture.name}")
                             dmx_sender.send_message(fixture.dmx_address, dmx_message)
                 except Exception as e:
                     logger.error("Error updating fixture: %s", e)

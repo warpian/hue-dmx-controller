@@ -11,23 +11,23 @@ from DmxFixture import DmxFixture
 class Dmx4ChRgbw(DmxFixture):
     kelvin_white_led = 5000
 
-    def get_dmx_message(self, hue_light_info: Dict[str, Any]) -> bytes:
+    def get_dmx_message(self) -> bytes:
 
-        if not 'on' in hue_light_info or not hue_light_info['on']['on']:
+        if not self.hueLamp.on.on:
             return bytes([0, 0, 0, 0])
 
-        dim_factor = hue_light_info['dimming']['brightness'] / 100 if 'dimming' in hue_light_info else 1.0
+        dim_factor = self.hueLamp.dimming.brightness / 100
 
-        if hue_light_info['color']['gamut_type'] == 'other':
+        if self.hueLamp.color.gamut_type == 'other':
             raise Exception(f"No gamut info for {self.name}, tracking Hue lamp {self.hue_light_id}")
 
         gamut = (
-            XYPoint(hue_light_info['color']['gamut']['red']['x'], hue_light_info['color']['gamut']['red']['y']),
-            XYPoint(hue_light_info['color']['gamut']['green']['x'], hue_light_info['color']['gamut']['green']['y']),
-            XYPoint(hue_light_info['color']['gamut']['blue']['x'], hue_light_info['color']['gamut']['blue']['y']),
+            XYPoint(self.hueLamp.color.gamut.red.x, self.hueLamp.color.gamut.red.y),
+            XYPoint(self.hueLamp.color.gamut.green.x, self.hueLamp.color.gamut.green.y),
+            XYPoint(self.hueLamp.color.gamut.blue.x, self.hueLamp.color.gamut.blue.y),
         )
-        x = hue_light_info['color']['xy']['x']
-        y = hue_light_info['color']['xy']['y']
+        x = self.hueLamp.color.xy.x
+        y = self.hueLamp.color.xy.y
 
         # convert Hue gamut coordinates to r g b
         color_converter = Converter(gamut)

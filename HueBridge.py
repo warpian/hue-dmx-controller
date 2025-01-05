@@ -4,9 +4,13 @@ Copyright (c) 2023 Tom Kalmijn / MIT License.
 import json
 from logging import Logger
 from typing import Dict, Any, Callable
+from pydantic import BaseModel
+from typing import List
 
 import requests
 from urllib3.exceptions import InsecureRequestWarning
+
+from HueModel import HueLight
 
 # suppress InsecureRequestWarning from urllib3
 requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
@@ -47,14 +51,16 @@ class HueBridge:
     def get_light_url(self, hue_light_id: str) -> str:
         return f"{self.api_url_light}/{hue_light_id}"
 
-    def get_light_info(self, hue_light_id: str) -> Dict[str, Any]:
+    def get_light(self, hue_light_id: str) -> HueLight:
         headers = {
             "hue-application-key": self.api_key,
             "Accept": "application/json"
         }
         response = requests.get(url=self.get_light_url(hue_light_id), headers=headers, verify=False)
         response.raise_for_status()
-        return response.json()['data'][0]
+        response_data = response.json()
+        response_json = json.dumps(response_data["data"][0])
+        return HueLight.model_validate_json(response_json)
 
     def set_light_state(self, hue_light_id: str, state: Dict[str, Any]) -> Dict[str, Any]:
         headers = {
