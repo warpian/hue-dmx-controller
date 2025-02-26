@@ -3,9 +3,7 @@ Copyright (c) 2023 Tom Kalmijn / MIT License.
 """
 import json
 from logging import Logger
-from typing import Dict, Any, Callable
-from pydantic import BaseModel
-from typing import List
+from typing import Dict, Any
 
 import requests
 from urllib3.exceptions import InsecureRequestWarning
